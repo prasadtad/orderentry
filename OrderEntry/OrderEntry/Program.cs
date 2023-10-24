@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using AutoFinance.Broker.InteractiveBrokers;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OrderEntry.IB;
@@ -36,15 +37,7 @@ namespace OrderEntry
                 })
                 .ConfigureServices((_, services) =>
                 {
-                    services.AddHttpClient<IBrokersService, BrokersService>(client =>
-                        {
-                            client.BaseAddress = new("https://localhost:5001");
-                        }).AddPolicyHandler(GetRetryPolicy())
-                          .ConfigurePrimaryHttpMessageHandler(() =>
-                            new HttpClientHandler
-                                {
-                                    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-                                });
+                    services.AddSingleton<IBrokersService, BrokersService>(p => new BrokersService("prasad", new TwsObjectFactory("localhost", 7496, 1)));
                     services.AddTransient<IParserService, ParserService>();
                     services.AddSingleton<App>();
                 });

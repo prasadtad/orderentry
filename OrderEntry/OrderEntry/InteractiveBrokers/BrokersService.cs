@@ -1,62 +1,95 @@
-﻿using System.Net.Http.Json;
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
+﻿using System.Collections.Concurrent;
+using AutoFinance.Broker.InteractiveBrokers;
+using AutoFinance.Broker.InteractiveBrokers.Constants;
+using AutoFinance.Broker.InteractiveBrokers.Controllers;
+using IBApi;
 using OrderEntry.MindfulTrader;
 
 namespace OrderEntry.IB
 {
     public class BrokersService : IBrokersService
     {
-        private readonly HttpClient httpClient;
-        private readonly ILogger<BrokersService> logger;
+        public string AccountId { get; private set; }
 
-        public BrokersService(HttpClient httpClient, ILogger<BrokersService> logger)
+        private readonly ITwsController twsController;
+
+        public BrokersService(string accountId, TwsObjectFactory twsObjectFactory)
         {
-            this.httpClient = httpClient;
-            this.logger = logger;
+            AccountId = accountId;
+            twsController = twsObjectFactory.TwsController;
         }
 
-        public async Task<IList<(string accountId, string displayName)>> GetAccounts()
+        public async Task<ConcurrentDictionary<string, string>> GetAccountDetails()
         {
-            return (await httpClient.GetFromJsonAsync<List<(string accountId, string displayName)>>("/portfolio/accounts"))!;
-        }
+            await twsController.EnsureConnectedAsync();
 
-        public async Task<bool> IsAuthenticated()
-        {
-            try
-            {
-                var response = await httpClient.GetAsync("/v1/api/iserver/auth/status");
-                response.EnsureSuccessStatusCode();
-                var authenticationStatus = JsonSerializer.Deserialize<AuthenticationStatus>(await response.Content.ReadAsStringAsync())!;
-                if (!authenticationStatus.authenticated)
-                    logger.LogWarning("Auth Status {failureReason}", authenticationStatus.fail);
-                return authenticationStatus.authenticated;
-            }
-            catch (HttpRequestException ex)
-            {
-                logger.LogError(ex, "Cannot check authentication");
-                return false;
-            }
+            return await twsController.GetAccountDetailsAsync(AccountId);
         }
 
         public async Task<bool> Submit(WatchlistStock watchlistStock)
         {
-            return false;
-        }
+            await twsController.EnsureConnectedAsync();
 
-        private class AuthenticationStatus
-        {
-            public bool authenticated { get; set; }
+            var contract = new Contract
+            {
+                SecType = TwsContractSecType.Stock,
+                Symbol = watchlistStock.Ticker,
+                Exchange = TwsExchange.Smart,
+                PrimaryExch = TwsExchange.Island,
+                Currency = TwsCurrency.Usd                
+            };
 
-            public string? fail { get; set; }
+            int entryOrderId = await twsController.GetNextValidIdAsync();
+            var takeProfitOrderId = await twsController.GetNextValidIdAsync();
+            var stopOrderId = await twsController.GetNextValidIdAsync();
+
+            Order entryOrder = new Order()
+            {
+                Account = AccountId,
+                Action = TwsOrderActions.Buy,
+                OrderType = TwsOrderType.Limit,
+                TotalQuantity = watchlistStock.ShareCount,
+                LmtPrice = watchlistStock.PotentialEntry,
+                Tif = "Day",
+                Transmit = false,
+            };
+
+            Order takeProfit = new Order()
+            {
+                Account = AccountId,
+                Action = TwsOrderActions.Sell,
+                OrderType = TwsOrderType.Limit,
+                TotalQuantity = watchlistStock.ShareCount,
+                LmtPrice = watchlistStock.PotentialProfit,
+                ParentId = entryOrderId,
+                Tif = TwsTimeInForce.GoodTillClose,
+                Transmit = false,
+            };
+
+            Order stopLoss = new Order()
+            {
+                Account = AccountId,
+                Action = TwsOrderActions.Sell,
+                OrderType = TwsOrderType.StopLoss,
+                TotalQuantity = watchlistStock.ShareCount,
+                AuxPrice = watchlistStock.PotentialStop,
+                ParentId = entryOrderId,
+                Tif = TwsTimeInForce.GoodTillClose,
+                Transmit = true,
+            };
+
+            var entryOrderAckTask = twsController.PlaceOrderAsync(entryOrderId, contract, entryOrder);
+            var takeProfitOrderAckTask = twsController.PlaceOrderAsync(takeProfitOrderId, contract, takeProfit);
+            var stopOrderAckTask = twsController.PlaceOrderAsync(stopOrderId, contract, stopLoss);
+            return (await Task.WhenAll(entryOrderAckTask, takeProfitOrderAckTask, stopOrderAckTask)).All(result => result);            
         }
     }
 
     public interface IBrokersService
     {
-        Task<bool> IsAuthenticated();
+        string AccountId { get; }
 
-        Task<IList<(string accountId, string displayName)>> GetAccounts();
+        Task<ConcurrentDictionary<string, string>> GetAccountDetails();
 
         Task<bool> Submit(WatchlistStock watchlistStock);
     }

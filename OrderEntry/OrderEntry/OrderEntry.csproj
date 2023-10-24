@@ -21,4 +21,9 @@
   <ItemGroup>
     <Folder Include="MindfulTrader\" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="StockWatchlist.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

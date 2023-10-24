@@ -6,12 +6,12 @@
 		public Strategies? Strategy { get; set; }
 		public required string Ticker { get; set; }
 		public int ShareCount { get; set; }
-		public decimal PotentialEntry { get; set; }
-		public decimal PotentialProfit { get; set; }
-		public decimal PotentialStop { get; set; }
-		public decimal CurrentPrice { get; set; }
-		public decimal DistanceInATRs { get; set; }
-		public decimal StockPositionValue { get; set; }
+		public double PotentialEntry { get; set; }
+		public double PotentialProfit { get; set; }
+		public double PotentialStop { get; set; }
+		public double CurrentPrice { get; set; }
+		public double DistanceInATRs { get; set; }
+		public double StockPositionValue { get; set; }
 		public required string EarningsDate { get; set; }
 		public required string DividendsDate { get; set; }
 

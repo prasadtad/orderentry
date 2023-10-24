@@ -7,21 +7,22 @@ namespace OrderEntry
     {
         private readonly IBrokersService interactiveBrokersService;
         private readonly IParserService parserService;
-        private readonly ILogger<App> logger;
 
-        public App(IBrokersService interactiveBrokersService, IParserService parserService, ILogger<App> logger)
+        public App(IBrokersService interactiveBrokersService, IParserService parserService)
         {
             this.interactiveBrokersService = interactiveBrokersService;
             this.parserService = parserService;
-            this.logger = logger;
         }
 
         public async Task Run()
         {
-            if (!await interactiveBrokersService.IsAuthenticated()) return;
-            logger.LogInformation("Authenticated");
+            Console.WriteLine($"Getting {interactiveBrokersService.AccountId} account details");
+            var account = await interactiveBrokersService.GetAccountDetails();
+            foreach (var key in account.Keys.OrderBy(k => k))
+                Console.WriteLine($"{key}={account[key]}");
 
-            var account = await SelectTradingAccount();            
+            Console.WriteLine("Parsing StockWatchlist.txt");
+            var count = 0;
             foreach (var watchlistStock in (await parserService.ParseWatchlist("StockWatchlist.txt"))
                     .Where(s => s.Strategy == Strategies.DoubleDown)
                     .OrderBy(s => s.StockPositionValue))
@@ -36,32 +37,19 @@ namespace OrderEntry
                 if (c == 's' || c == 'S') continue;
                 if (c == 'a' || c == 'A')
                 {
-                    logger.LogInformation("Order to submit");
+                    Console.WriteLine("Submitting order");
+                    var result = await interactiveBrokersService.Submit(watchlistStock);
+                    if (result)
+                    {
+                        count++;
+                        Console.WriteLine("Submitted successfully");
+                    }
+                    else
+                        Console.WriteLine("Failed to submit");
                 }
             }
 
-            logger.LogInformation("Orders submitted");
-        }
-
-        private async Task<(string accountId, string displayName)> SelectTradingAccount()
-        {
-            var accounts = await interactiveBrokersService.GetAccounts();
-            int a;
-            do
-            {
-                var i = 1;
-                foreach (var account in accounts)
-                {
-                    Console.WriteLine($"{i}: {account.accountId} - {account.displayName}");
-                    i++;
-                }
-                Console.Write("Select account: ");
-                a = Console.Read();
-            }
-            while (a < 1 || a > accounts.Count);
-            Console.WriteLine($"Account Selected: {accounts[a-1].accountId} - {accounts[a-1].displayName}{Environment.NewLine}");
-
-            return accounts[a-1];
+            Console.WriteLine($"{count} Orders submitted");
         }
     }
 }
