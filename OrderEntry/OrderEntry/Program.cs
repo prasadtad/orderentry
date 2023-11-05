@@ -4,8 +4,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OrderEntry.IB;
 using OrderEntry.MindfulTrader;
-using Polly;
-using Polly.Extensions.Http;
 
 namespace OrderEntry
 {
@@ -18,7 +16,9 @@ namespace OrderEntry
             using var scope = host.Services.CreateScope();
 
             var services = scope.ServiceProvider;
-            await services.GetRequiredService<App>().Run();
+            var app = services.GetRequiredService<App>();
+            await app.RunPrasadInteractiveBrokers();
+            await app.RunPrasadCharlesSchwab();
         }
 
         static IHostBuilder CreateHostBuilder(string[] args)
@@ -37,17 +37,10 @@ namespace OrderEntry
                 })
                 .ConfigureServices((_, services) =>
                 {
-                    services.AddSingleton<IBrokersService, BrokersService>(p => new BrokersService("prasad", new TwsObjectFactory("localhost", 7496, 1)));
+                    services.AddSingleton<IBrokersService, BrokersService>(p => new BrokersService(new TwsObjectFactory("localhost", 7496, 1)));
                     services.AddTransient<IParserService, ParserService>();
                     services.AddSingleton<App>();
                 });
-        }
-
-        static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
-        {
-            return HttpPolicyExtensions
-                .HandleTransientHttpError()
-                .WaitAndRetryAsync(1, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
         }
     }
 }

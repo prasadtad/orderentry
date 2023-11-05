@@ -22,7 +22,10 @@
     <Folder Include="MindfulTrader\" />
   </ItemGroup>
   <ItemGroup>
-    <None Update="StockWatchlist.txt">
+    <None Update="IBPrasadOrders.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="IRAOrders.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
