@@ -58,13 +58,54 @@ namespace OrderEntry.MindfulTrader
                             mode == Mode.Stocks ? ReadStockOrder(line, false) :
                             mode == Mode.LowPricedStocks ? ReadStockOrder(line, true) :
                             throw new NotImplementedException($"Unsupported mode {mode}");
-                if (order != null) list.Add(order);
+                if (order != null)
+                {
+                    if (order.WatchDate != DateOnly.FromDateTime(DateTime.Now))
+                        throw new Exception($"Watch Date {order.WatchDate} is not today's date");
+                    list.Add(order);
+                }
 			}
 
             if (readAccountBalance == null) throw new Exception("Didn't find the account balance");
 
 			return list;
 		}
+
+        public IList<IOrder> ParseWatchlist(string watchlist)
+        {
+            var list = new List<IOrder>();
+
+            Mode? mode = null;
+
+            foreach (var line in watchlist.Split(Environment.NewLine, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (mode == null)
+                {
+                    if (line.Equals("Stocks", StringComparison.OrdinalIgnoreCase))
+                        mode = Mode.Stocks;
+                    else if (line.Equals("Options", StringComparison.OrdinalIgnoreCase))
+                        mode = Mode.Options;
+                    if (line.Equals("Low-Priced Stocks", StringComparison.OrdinalIgnoreCase))
+                        mode = Mode.LowPricedStocks;
+                    continue;
+                }
+
+                if (mode == null || line.StartsWith("Watch Date")) continue;
+                
+                var order = mode == Mode.Options ? ReadOptionOrder(line) :
+                            mode == Mode.Stocks ? ReadStockOrder(line, false) :
+                            mode == Mode.LowPricedStocks ? ReadStockOrder(line, true) :
+                            throw new NotImplementedException($"Unsupported mode {mode}");
+                if (order != null)
+                {
+                    if (order.WatchDate != DateOnly.FromDateTime(DateTime.Now))
+                        throw new Exception($"Watch Date {order.WatchDate} is not today's date");
+                    list.Add(order);
+                }
+            }
+            
+            return list;
+        }
 
         private IOrder? ReadOptionOrder(string line)
         {
@@ -79,7 +120,7 @@ namespace OrderEntry.MindfulTrader
                     StrikeDate = DateOnly.ParseExact($"{tokens[4]}/{tokens[5]}/{tokens[6]}", "MMM/dd/yyyy"),
                     StrikePrice = double.Parse(tokens[7], System.Globalization.NumberStyles.Currency),
                     Type = tokens[8] == "Call" ? OptionType.Call : throw new NotImplementedException($"Unsupported option type {tokens[8]}"),
-                    Count = int.Parse(tokens[9]),
+                    Count = int.TryParse(tokens[9], out var count) ? count : 0,
                     PotentialEntry = double.Parse(tokens[10]),
                     PotentialProfit = double.Parse(tokens[11]),
                     PotentialStop = double.Parse(tokens[12]),
@@ -106,7 +147,7 @@ namespace OrderEntry.MindfulTrader
                     WatchDate = DateOnly.ParseExact(tokens[0], "MM/dd/yyyy"),
                     Strategy = tokens[1] == "Main" && tokens[2] == "Pullback" ? Strategies.MainPullback : tokens[1] == "Double" && tokens[2] == "Down" ? Strategies.DoubleDown : throw new NotImplementedException($"Invalid strategy {tokens[1]} {tokens[2]}"),
                     Ticker = tokens[3],
-                    Count = int.Parse(tokens[4]),
+                    Count = int.TryParse(tokens[4], out var count) ? count : 0,
                     PotentialEntry = double.Parse(tokens[5]),
                     PotentialProfit = double.Parse(tokens[6]),
                     PotentialStop = double.Parse(tokens[7]),
@@ -128,5 +169,7 @@ namespace OrderEntry.MindfulTrader
 	public interface IParserService
 	{
         Task<IList<IOrder>> ParseWatchlist(string watchlistFile, Mode mode, double expectedAccountBalance);
-	}
+
+        IList<IOrder> ParseWatchlist(string watchlist);
+    }
 }

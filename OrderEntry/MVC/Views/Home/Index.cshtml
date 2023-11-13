@@ -1,0 +1,37 @@
+﻿@model MVC.Models.OrdersViewModel
+
+@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Orders</h1>
+    <hr />
+    <table>
+        <thead>
+            <tr>
+                <td>Stock Order</td>                
+                <td>TOS Entry</td>
+                <td>TOS Profit</td>
+                <td>TOS Stop</td>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var stockOrder in Model.Stock)
+{
+                    <tr>
+                        <td>@stockOrder.Description</td>
+                        <td><button onclick="copyText('@stockOrder.TOSEntry')">@stockOrder.TOSEntry</button></td>
+                        <td><button onclick="copyText('@stockOrder.TOSProfit')">@stockOrder.TOSProfit</button></td>
+                        <td><button onclick="copyText('@stockOrder.TOSStop')">@stockOrder.TOSStop</button></td>
+                    </tr>
+}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    function copyText(text) {
+        navigator.clipboard.writeText(text);
+    }
+</script>

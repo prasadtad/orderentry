@@ -18,7 +18,7 @@
 
         public override string ToString()
         {
-            return $"{Strategy} {Ticker} {Count} [{PotentialStop} <- {PotentialEntry} -> {PotentialProfit}]";
+            return $"{Strategy} {Count} {Ticker} [{PotentialStop} <- {PotentialEntry} -> {PotentialProfit}]";
         }
     }
 }

@@ -1,15 +1,19 @@
-﻿using OrderEntry.IB;
+﻿using OrderEntry.Brokers;
 using OrderEntry.MindfulTrader;
+using TextCopy;
+
 namespace OrderEntry
 {
     public class App
     {
-        private readonly IBrokersService interactiveBrokersService;
+        private readonly IInteractiveBrokersService interactiveBrokersService;
+        private readonly ITDAmeritradeService ameritradeService;
         private readonly IParserService parserService;
 
-        public App(IBrokersService interactiveBrokersService, IParserService parserService)
+        public App(IInteractiveBrokersService interactiveBrokersService, ITDAmeritradeService ameritradeService, IParserService parserService)
         {
             this.interactiveBrokersService = interactiveBrokersService;
+            this.ameritradeService = ameritradeService;
             this.parserService = parserService;
         }
 
@@ -32,13 +36,28 @@ namespace OrderEntry
         public async Task RunPrasadCharlesSchwab()
         {
             const string OrdersFile = "IRAOrders.txt";
-            const double AccountBalance = 100000;
+            const double AccountBalance = 50000;
 
             var orders = (await parserService.ParseWatchlist(OrdersFile, Mode.Options, AccountBalance))
                     .Where(s => s.Strategy == Strategies.MainPullback && s.Count > 0)
                     .Cast<OptionOrder>()
                     .OrderBy(s => s.PositionValue)
                     .ToList();
+            foreach (var order in orders)
+                Console.WriteLine(order);
+        }
+
+        public async Task RunPrasadTDAmeritrade()
+        {
+            const string OrdersFile = "IRAOrders.txt";
+            const double AccountBalance = 50000;
+
+            var orders = (await parserService.ParseWatchlist(OrdersFile, Mode.Stocks, AccountBalance))
+                    .Where(s => s.Count > 0)
+                    .Cast<StockOrder>()
+                    .OrderBy(s => s.DistanceInATRs)
+                    .ToList();
+
             foreach (var order in orders)
                 Console.WriteLine(order);
         }
@@ -51,9 +70,10 @@ namespace OrderEntry
                 char c = '0';
                 while (c != 'A' && c != 'S' && c != 'C' && c != 'a' && c != 's' && c != 'c')
                 {
-                    Console.Write($"{order} - Accept (A), Skip (S), Cancel (C): ");
-                    c = (char)Console.Read();
-                    Console.WriteLine();
+                    Console.WriteLine(order);
+                    Console.Write("Accept (A), Skip (S), Cancel (C): ");
+                    var key = Console.ReadKey();
+                    c = key.KeyChar;
                 }
                 if (c == 'c' || c == 'C') return;
                 if (c == 's' || c == 'S') continue;
@@ -74,4 +94,3 @@ namespace OrderEntry
         }
     }
 }
-

@@ -4,13 +4,13 @@ using AutoFinance.Broker.InteractiveBrokers.Controllers;
 using IBApi;
 using OrderEntry.MindfulTrader;
 
-namespace OrderEntry.IB
+namespace OrderEntry.Brokers
 {
-    public class BrokersService : IBrokersService
+    public class InteractiveBrokersService : IInteractiveBrokersService
     {
         private readonly ITwsController twsController;
 
-        public BrokersService(TwsObjectFactory twsObjectFactory)
+        public InteractiveBrokersService(TwsObjectFactory twsObjectFactory)
         {
             twsController = twsObjectFactory.TwsController;
         }
@@ -88,7 +88,7 @@ namespace OrderEntry.IB
         }
     }
 
-    public interface IBrokersService
+    public interface IInteractiveBrokersService
     {
         Task Display(string accountId);
 

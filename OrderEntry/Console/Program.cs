@@ -1,8 +1,9 @@
 ﻿using AutoFinance.Broker.InteractiveBrokers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using OrderEntry.IB;
+using OrderEntry.Brokers;
 using OrderEntry.MindfulTrader;
 
 namespace OrderEntry
@@ -18,7 +19,6 @@ namespace OrderEntry
             var services = scope.ServiceProvider;
             var app = services.GetRequiredService<App>();
             await app.RunPrasadInteractiveBrokers();
-            await app.RunPrasadCharlesSchwab();
         }
 
         static IHostBuilder CreateHostBuilder(string[] args)
@@ -35,11 +35,19 @@ namespace OrderEntry
                         };
                     });
                 })
-                .ConfigureServices((_, services) =>
+                .ConfigureServices((b, services) =>
                 {
-                    services.AddSingleton<IBrokersService, BrokersService>(p => new BrokersService(new TwsObjectFactory("localhost", 7496, 1)));
+                    services.AddHttpClient();
+                    services.Configure<TDAmeritradeSettings>(b.Configuration.GetSection(nameof(TDAmeritradeSettings)));
+                    services.AddSingleton<IInteractiveBrokersService, InteractiveBrokersService>(p => new InteractiveBrokersService(new TwsObjectFactory("localhost", 7496, 1)));
+                    services.AddSingleton<ITDAmeritradeService, TDAmeritradeService>();
                     services.AddTransient<IParserService, ParserService>();
                     services.AddSingleton<App>();
+                })
+                .ConfigureAppConfiguration((h, c) =>
+                {
+                    if (h.HostingEnvironment.IsDevelopment())
+                        c.AddUserSecrets<Program>();
                 });
         }
     }

@@ -19,9 +19,9 @@
         public override string ToString()
         {
             if (PotentialStop > 0)
-                return $"{Strategy} {Ticker} {StrikeDate} {StrikePrice} {Type} {Count} [{PotentialEntry} -> {PotentialProfit}]";
+                return $"{Strategy} {Count} {Ticker} {StrikeDate} {StrikePrice} {Type} [{PotentialEntry} -> {PotentialProfit}]";
             else
-                return $"{Strategy} {Ticker} {StrikeDate} {StrikePrice} {Type} {Count} [{PotentialStop} <- {PotentialEntry} -> {PotentialProfit}]";
+                return $"{Strategy} {Count} {Ticker} {StrikeDate} {StrikePrice} {Type} [{PotentialStop} <- {PotentialEntry} -> {PotentialProfit}]";
         }
     }
 }
