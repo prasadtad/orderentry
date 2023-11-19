@@ -3,6 +3,7 @@ namespace OrderEntry.MindfulTrader
 {
 	public interface IOrder
 	{
+        Guid Id { get; set; }
         DateOnly WatchDate { get; set; }
         Strategies Strategy { get; set; }
         string Ticker { get; set; }

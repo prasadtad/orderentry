@@ -2,6 +2,7 @@
 {
 	public class OptionOrder: IOrder
 	{
+        public required Guid Id { get; set; }
         public required DateOnly WatchDate { get; set; }
         public required Strategies Strategy { get; set; }
         public required string Ticker { get; set; }
@@ -19,9 +20,9 @@
         public override string ToString()
         {
             if (PotentialStop > 0)
-                return $"{Strategy} {Count} {Ticker} {StrikeDate} {StrikePrice} {Type} [{PotentialEntry} -> {PotentialProfit}]";
+                return $"{Count} {Ticker} {StrikeDate} {StrikePrice} {Type} [{PotentialEntry} -> {PotentialProfit}]";
             else
-                return $"{Strategy} {Count} {Ticker} {StrikeDate} {StrikePrice} {Type} [{PotentialStop} <- {PotentialEntry} -> {PotentialProfit}]";
+                return $"{Count} {Ticker} {StrikeDate} {StrikePrice} {Type} [{PotentialStop} <- {PotentialEntry} -> {PotentialProfit}]";
         }
     }
 }

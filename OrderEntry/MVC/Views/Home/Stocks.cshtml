@@ -1,0 +1,54 @@
+﻿@model List<MVC.Models.StockOrderViewModel>
+
+@{
+    ViewData["Title"] = "Stock Orders";
+}
+
+<div class="text-center">
+    <h1 class="display-4">@ViewBag.Strategy Stock Orders $@ViewBag.AccountBalance limit</h1>
+    <hr />
+    @using (Html.BeginForm("SubmitStockOrders", "Home", FormMethod.Post))
+    {
+        <fieldset>
+            <p>
+                <input id="Submit" type="submit" value="submit" />
+            </p>
+            <table>
+                <thead>
+                    <tr>
+                        <td></td>
+                        <td>Selected</td>
+                        <td>Order</td>
+                        <td>Value</td>
+                        <td>TOS Entry</td>
+                        <td>TOS Profit</td>
+                        <td>TOS Stop</td>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < Model.Count; i++)
+                    {
+                        <tr style="background-color: @Model[i].BackgroundColor">
+                            <td>@Html.HiddenFor(m => @Model[i].Id)</td>
+                            <td>
+                                @Html.CheckBoxFor(m => @Model[i].Selected)
+                                @Html.HiddenFor(m => @Model[i].Selected)
+                            </td>
+                            <td>@Model[i].Description</td>
+                            <td>@Model[i].PositionValue</td>
+                            <td><button onclick="copyText('@Model[i].TOSEntry')">@Model[i].TOSEntry</button></td>
+                            <td><button onclick="copyText('@Model[i].TOSProfit')">@Model[i].TOSProfit</button></td>
+                            <td><button onclick="copyText('@Model[i].TOSStop')">@Model[i].TOSStop</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </fieldset>
+    }
+</div>
+
+<script>
+    function copyText(text) {
+        navigator.clipboard.writeText(text);
+    }
+</script>

@@ -2,7 +2,8 @@
 {
     public class StockOrder: IOrder
 	{
-		public required bool LowPriced { get; set; }
+        public required Guid Id { get; set; }
+        public required bool LowPriced { get; set; }
 		public required DateOnly WatchDate { get; set; }
 		public required Strategies Strategy { get; set; }
 		public required string Ticker { get; set; }
@@ -14,11 +15,11 @@
 		public required double DistanceInATRs { get; set; }
 		public required double PositionValue { get; set; }
 		public required string EarningsDate { get; set; }
-		public required string DividendsDate { get; set; }		
+		public required string DividendsDate { get; set; }        
 
         public override string ToString()
         {
-            return $"{Strategy} {Count} {Ticker} [{PotentialStop} <- {PotentialEntry} -> {PotentialProfit}]";
+            return $"{Count} {Ticker} [{PotentialStop} <- {PotentialEntry} -> {PotentialProfit}]";
         }
     }
 }

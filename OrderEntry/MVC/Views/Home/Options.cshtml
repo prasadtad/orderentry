@@ -1,0 +1,47 @@
+﻿@model List<MVC.Models.OptionOrderViewModel>
+
+@{
+    ViewData["Title"] = "Option Orders";
+}
+
+<div class="text-center">
+    <h1 class="display-4">@ViewBag.Strategy Option Orders $@ViewBag.AccountBalance limit</h1>
+    <hr />
+    @using (Html.BeginForm("SubmitOptionOrders", "Home", FormMethod.Post))
+    {
+        <fieldset>
+            <p>
+                <input id="Submit" type="submit" value="submit" />
+            </p>
+            <table>
+                <thead>
+                    <tr>
+                        <td></td>
+                        <td>Selected</td>
+                        <td>Order</td>
+                        <td>Position Value</td>
+                        <td>TOS Entry</td>
+                        <td>TOS Profit</td>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var optionOrder in Model)
+                    {
+                        <tr style="background-color: @optionOrder.BackgroundColor">
+                            <td>@Html.HiddenFor(m => optionOrder.Id)</td>
+                            <td>@Html.CheckBoxFor(m => @optionOrder.Selected)</td>
+                            <td>@optionOrder.Description</td>
+                            <td>@optionOrder.PositionValue</td>
+                            <td><button onclick="copyText('@optionOrder.TOSEntry')">@optionOrder.TOSEntry</button></td>
+                            <td><button onclick="copyText('@optionOrder.TOSProfit')">@optionOrder.TOSProfit</button></td>                            
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </fieldset>
+    }
+</div>
+
+<script>function copyText(text) {
+        navigator.clipboard.writeText(text);
+    }</script>
