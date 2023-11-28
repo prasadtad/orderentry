@@ -36,9 +36,9 @@
                             </td>
                             <td>@Model[i].Description</td>
                             <td>@Model[i].PositionValue</td>
-                            <td><button onclick="copyText('@Model[i].TOSEntry')">@Model[i].TOSEntry</button></td>
-                            <td><button onclick="copyText('@Model[i].TOSProfit')">@Model[i].TOSProfit</button></td>
-                            <td><button onclick="copyText('@Model[i].TOSStop')">@Model[i].TOSStop</button></td>
+                            <td><input type="button" onclick="copyText('@Model[i].TOSEntry')" value="@Model[i].TOSEntry" /></td>
+                            <td><input type="button" onclick="copyText('@Model[i].TOSProfit')" value="@Model[i].TOSProfit" /></td>
+                            <td><input type="button" onclick="copyText('@Model[i].TOSStop')" value="@Model[i].TOSStop" /></td>
                         </tr>
                     }
                 </tbody>
@@ -50,5 +50,6 @@
 <script>
     function copyText(text) {
         navigator.clipboard.writeText(text);
+        return false;
     }
 </script>

@@ -1,7 +1,5 @@
-﻿using IBApi;
-using OrderEntry.Brokers;
+﻿using OrderEntry.Brokers;
 using OrderEntry.MindfulTrader;
-using TextCopy;
 
 namespace OrderEntry
 {
@@ -18,118 +16,55 @@ namespace OrderEntry
             this.parserService = parserService;
         }
 
-        public async Task RunPrasadIBDoubleDownStocks()
+        public async Task Run()
         {
-            const string OrdersFile = "IBPrasadOrders.txt";
-            const double AccountBalance = 15000;
+            DateOnly currentDateInEst = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTime.Now, TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time")));
 
-            var orders = parserService.ParseWatchlist(await File.ReadAllTextAsync(OrdersFile), Mode.Stocks, Strategies.DoubleDown, AccountBalance)
-                    .Where(s => s.WatchDate == DateOnly.FromDateTime(DateTime.Now) && s.Count > 0)
-                    .OrderBy(s => ((StockOrder)s).DistanceInATRs)
-                    .ToList();
+            var tradesWithOrders = new List<(TradeSettings tradeSettings, List<IOrder> orders)>();
+            foreach (var tradeSetting in interactiveBrokersService.Trades)
+                tradesWithOrders.Add((tradeSetting, (await parserService.GetWatchlist(tradeSetting))
+                    .Where(s => s.WatchDate == currentDateInEst && s.Count > 0).ToList()));
 
-            await interactiveBrokersService.Display();
-            
-            orders = await interactiveBrokersService.GetOrdersWithoutPositions(orders);
-            orders = TakeTop(orders, AccountBalance); 
-            
-            await SubmitOrders(orders, order => interactiveBrokersService.Submit((StockOrder) order));
-        }
-
-        public async Task RunPrasadIBDoubleDownOptions()
-        {
-            const string OrdersFile = "IBPrasadOrders.txt";
-            const double AccountBalance = 15000;
-
-            var orders = parserService.ParseWatchlist(await File.ReadAllTextAsync(OrdersFile), Mode.Options, Strategies.DoubleDown, AccountBalance)
-                    .Where(s => s.WatchDate == DateOnly.FromDateTime(DateTime.Now) && s.Count > 0)                    
-                    .ToList();
-
-            await interactiveBrokersService.Display();
-
-            var periodicTimer = new PeriodicTimer(TimeSpan.FromMinutes(5));
-            int count = 0;
-            while (count < 12 && await periodicTimer.WaitForNextTickAsync())
+            var periodicTimer = new PeriodicTimer(TimeSpan.FromMinutes(1));            
+            while (await periodicTimer.WaitForNextTickAsync())
             {
-                count++;
-                var ordersWithoutPositions = await interactiveBrokersService.GetOrdersWithoutPositions(orders);
-
-            }
-        }   
-
-        public async Task RunPrasadCharlesSchwab()
-        {
-            const string OrdersFile = "IRAOrders.txt";
-            const double AccountBalance = 50000;
-
-            var orders = parserService.ParseWatchlist(await File.ReadAllTextAsync(OrdersFile), Mode.Options, Strategies.MainPullback, AccountBalance)
-                    .Where(s => s.WatchDate == DateOnly.FromDateTime(DateTime.Now) && s.Count > 0)
-                    .Cast<OptionOrder>()
-                    .OrderBy(s => s.PositionValue)
-                    .ToList();
-            foreach (var order in orders)
-                Console.WriteLine(order);
-        }
-
-        public async Task RunPrasadTDAmeritrade()
-        {
-            const string OrdersFile = "IRAOrders.txt";
-            const double AccountBalance = 50000;
-
-            var orders = parserService.ParseWatchlist(await File.ReadAllTextAsync(OrdersFile), Mode.Stocks, Strategies.MainPullback, AccountBalance)
-                    .Where(s => s.WatchDate == DateOnly.FromDateTime(DateTime.Now) && s.Count > 0)
-                    .Cast<StockOrder>()
-                    .OrderBy(s => s.DistanceInATRs)
-                    .ToList();
-
-            foreach (var order in orders)
-                Console.WriteLine(order);
-        }
-
-        private static async Task SubmitOrders(List<IOrder> orders, Func<IOrder, Task<bool>> submitFunc)
-        {
-            var count = 0;
-            foreach (var order in orders)
-            {
-                char c = '0';
-                while (c != 'A' && c != 'S' && c != 'C' && c != 'a' && c != 's' && c != 'c')
+                foreach (var (tradeSettings, orders) in tradesWithOrders)
                 {
-                    Console.WriteLine(order);
-                    Console.Write("Accept (A), Skip (S), Cancel (C): ");
-                    var key = Console.ReadKey();
-                    c = key.KeyChar;
-                }
-                if (c == 'c' || c == 'C') return;
-                if (c == 's' || c == 'S') continue;
-                if (c == 'a' || c == 'A')
-                {
-                    var result = await submitFunc(order);
-                    if (result)
-                    {
-                        count++;
-                        Console.WriteLine("Submitted successfully");
-                    }
-                    else
-                        Console.WriteLine("Failed to submit");
+                    await ReSubmitOrders(tradeSettings, orders);
                 }
             }
-
-            Console.WriteLine($"{count} Orders submitted");
         }
 
-        private List<IOrder> TakeTop(List<IOrder> orders, double accountBalance)
+        private async Task ReSubmitOrders(TradeSettings tradeSettings, List<IOrder> orders)
         {
-            var balance = 0.0;
-            var topOrders = new List<IOrder>();
-            foreach (var order in orders)
+            var ordersWithoutPositions = await interactiveBrokersService.GetOrdersWithoutPositions(orders);
+            var ordersWithPositions = orders.Except(ordersWithoutPositions).ToList();
+            var ordersWithPrices = new List<(IOrder order, double price)>();
+            foreach (var order in ordersWithoutPositions)
             {
-                balance += order.PositionValue;
-                if (balance > accountBalance)
-                    break;
-                topOrders.Add(order);
+                if (order is OptionOrder) throw new NotImplementedException();
+
+                var price = await interactiveBrokersService.GetCurrentPrice(order.Ticker);
+                if (price != null) ordersWithPrices.Add((order, price.Value));
             }
 
-            return topOrders;
+            double balance = ordersWithPositions.Sum(o => o.PositionValue);
+            if (balance >= tradeSettings.AccountBalance)
+            {
+                Console.WriteLine($"IB orders with positions balance {balance} >= allowed {tradeSettings.AccountBalance}");
+                return;
+            }
+
+            foreach (var (order, price) in ordersWithPrices.OrderByDescending(o => o.price / o.order.PotentialEntry))
+            {
+                if (await interactiveBrokersService.Submit((StockOrder)order))
+                {
+                    balance += order.PositionValue;
+                    Console.WriteLine($"Submitted {order}");
+                }
+
+                if (balance > tradeSettings.AccountBalance) break;
+            }
         }
     }
 }

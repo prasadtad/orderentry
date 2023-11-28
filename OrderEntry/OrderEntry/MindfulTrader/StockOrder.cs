@@ -15,7 +15,10 @@
 		public required double DistanceInATRs { get; set; }
 		public required double PositionValue { get; set; }
 		public required string EarningsDate { get; set; }
-		public required string DividendsDate { get; set; }        
+		public required string DividendsDate { get; set; }
+        public required int EntryOrderId { get; set; }
+        public required int ProfitOrderId { get; set; }
+        public required int StopOrderId { get; set; }
 
         public override string ToString()
         {

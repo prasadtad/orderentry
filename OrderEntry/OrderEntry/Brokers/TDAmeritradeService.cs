@@ -15,6 +15,8 @@ namespace OrderEntry.Brokers
         private TDAuthResult? authResult;
         private bool isSignedIn = false;
 
+        public TradeSettings[] Trades => options.Value.Trades;
+
         public TDAmeritradeService(HttpClient httpClient, IOptions<TDAmeritradeSettings> options)
 		{
             this.httpClient = httpClient;
@@ -159,6 +161,8 @@ namespace OrderEntry.Brokers
 
 	public interface ITDAmeritradeService
 	{
+        TradeSettings[] Trades { get; }
+
         (string entry, string profit, string stop) GetPastableFormat(StockOrder order);
 
         (string entry, string profit) GetPastableFormat(OptionOrder order);
@@ -169,5 +173,7 @@ namespace OrderEntry.Brokers
     public class TDAmeritradeSettings
     {
         public required string ConsumerKey { get; set; }
+
+        public required TradeSettings[] Trades { get; set; }
     }
 }

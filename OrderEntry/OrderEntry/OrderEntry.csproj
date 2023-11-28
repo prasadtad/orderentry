@@ -4,6 +4,7 @@
     <TargetFramework>net7.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <UserSecretsId>f72d9706-c11c-45ff-b22b-45ed4e1f092f</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,5 +18,7 @@
   <ItemGroup>
     <PackageReference Include="AutoFinance.Broker" Version="1.0.755" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.40.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="5.0.0" />
   </ItemGroup>
 </Project>

@@ -10,17 +10,14 @@ namespace OrderEntry
     class Program
     {
         static async Task Main(string[] args)
-        {
-            Console.BackgroundColor = ConsoleColor.Red;
-            Console.ForegroundColor = ConsoleColor.White;
-
+        {            
             using IHost host = CreateHostBuilder(args).Build();
 
             using var scope = host.Services.CreateScope();
 
             var services = scope.ServiceProvider;
             var app = services.GetRequiredService<App>();
-            await app.RunPrasadIBDoubleDownStocks();
+            await app.Run();
         }
 
         static IHostBuilder CreateHostBuilder(string[] args)
@@ -42,9 +39,10 @@ namespace OrderEntry
                     services.AddHttpClient();
                     services.Configure<TDAmeritradeSettings>(b.Configuration.GetSection(nameof(TDAmeritradeSettings)));
                     services.Configure<InteractiveBrokersSettings>(b.Configuration.GetSection(nameof(InteractiveBrokersSettings)));
+                    services.Configure<MindfulTraderSettings>(b.Configuration.GetSection(nameof(MindfulTraderSettings)));
                     services.AddSingleton<IInteractiveBrokersService, InteractiveBrokersService>();
                     services.AddSingleton<ITDAmeritradeService, TDAmeritradeService>();
-                    services.AddTransient<IParserService, ParserService>();
+                    services.AddSingleton<IParserService, ParserService>();
                     services.AddSingleton<App>();
                 })
                 .ConfigureAppConfiguration((h, c) =>

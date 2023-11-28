@@ -17,6 +17,8 @@ namespace OrderEntry.Brokers
             this.twsObjectFactory = new TwsObjectFactory("localhost", options.Value.Port, 1);
         }
 
+        public TradeSettings[] Trades => options.Value.Trades;
+
         public async Task Display()
         {
             Console.WriteLine($"IB: Connecting...");
@@ -44,17 +46,21 @@ namespace OrderEntry.Brokers
                 Currency = TwsCurrency.Usd
             };
 
-            Dictionary<int, double> askPrices = new Dictionary<int, double>();
+            var askPrices = new Dictionary<int, double>();
             twsObjectFactory.TwsCallbackHandler.TickPriceEvent += (sender, args) =>
             {
                 if (args.Field == 2)  // Ask price
                     askPrices.Add(args.TickerId, args.Price);
             };
 
-            twsController.RequestMarketDataType(2);   // Frozen
+            twsController.RequestMarketDataType(1);   // Live
             
-            var result = await twsController.RequestMarketDataAsync(contract, "233", true, false, null);
-            await Task.Delay(10000);
+            var result = await twsController.RequestMarketDataAsync(contract, string.Empty, true, false, null);
+            for (var i = 0; i < 10; i++)
+            {
+                await Task.Delay(1000);
+                if (askPrices.Count > 0) break;
+            }
             twsController.CancelMarketData(result.TickerId);
 
             if (askPrices.Count == 0 || !askPrices.TryGetValue(result.TickerId, out var askPrice))
@@ -63,9 +69,40 @@ namespace OrderEntry.Brokers
             return askPrice;
         }
 
-        public Task<(double price, string tradingClass)?> GetCurrentPrice(string ticker, double strikePrice, DateOnly strikeDate, OptionType type)
+        public async Task<(double price, string tradingClass)?> GetCurrentPrice(string ticker, double strikePrice, DateOnly strikeDate, OptionType type)
         {
-            throw new NotImplementedException();
+            var twsController = twsObjectFactory.TwsControllerBase;
+            await twsController.EnsureConnectedAsync();
+
+            var contract = new Contract
+            {
+                SecType = TwsContractSecType.Option,
+                Symbol = ticker,
+                Strike = strikePrice,
+                LastTradeDateOrContractMonth = strikeDate.ToString("yyyyMMdd"),
+                Right = type == OptionType.Call ? "C" : throw new NotImplementedException(),
+                Exchange = TwsExchange.Smart,
+                PrimaryExch = TwsExchange.Island,
+                Currency = TwsCurrency.Usd
+            };
+
+            Dictionary<int, double> askPrices = new Dictionary<int, double>();
+            twsObjectFactory.TwsCallbackHandler.TickPriceEvent += (sender, args) =>
+            {
+                if (args.Field == 2)  // Ask price
+                    askPrices.Add(args.TickerId, args.Price);
+            };
+
+            twsController.RequestMarketDataType(2);   // Frozen
+
+            var result = await twsController.RequestMarketDataAsync(contract, "233", true, false, null);
+            await Task.Delay(10000);
+            twsController.CancelMarketData(result.TickerId);
+
+            if (askPrices.Count == 0 || !askPrices.TryGetValue(result.TickerId, out var askPrice))
+                return null;
+
+            return (askPrice, "");
         }
 
         public async Task<List<IOrder>> GetOrdersWithoutPositions(IEnumerable<IOrder> orders)
@@ -102,9 +139,14 @@ namespace OrderEntry.Brokers
                 Currency = TwsCurrency.Usd
             };
 
-            int entryOrderId = await twsController.GetNextValidIdAsync();
-            var takeProfitOrderId = await twsController.GetNextValidIdAsync();
-            var stopOrderId = await twsController.GetNextValidIdAsync();
+            if (stockOrder.EntryOrderId < 0)
+                stockOrder.EntryOrderId = await twsController.GetNextValidIdAsync();
+
+            if (stockOrder.ProfitOrderId < 0)
+                stockOrder.ProfitOrderId = await twsController.GetNextValidIdAsync();
+
+            if (stockOrder.StopOrderId < 0)
+                stockOrder.StopOrderId = await twsController.GetNextValidIdAsync();
 
             Order entryOrder = new Order()
             {
@@ -124,7 +166,7 @@ namespace OrderEntry.Brokers
                 OrderType = TwsOrderType.Limit,
                 TotalQuantity = stockOrder.Count,
                 LmtPrice = stockOrder.PotentialProfit,
-                ParentId = entryOrderId,
+                ParentId = stockOrder.EntryOrderId,
                 Tif = TwsTimeInForce.GoodTillClose,
                 Transmit = false,
             };
@@ -136,14 +178,14 @@ namespace OrderEntry.Brokers
                 OrderType = TwsOrderType.StopLoss,
                 TotalQuantity = stockOrder.Count,
                 AuxPrice = stockOrder.PotentialStop,
-                ParentId = entryOrderId,
+                ParentId = stockOrder.EntryOrderId,
                 Tif = TwsTimeInForce.GoodTillClose,
                 Transmit = true,
             };
 
-            var entryOrderAckTask = twsController.PlaceOrderAsync(entryOrderId, contract, entryOrder);
-            var takeProfitOrderAckTask = twsController.PlaceOrderAsync(takeProfitOrderId, contract, takeProfit);
-            var stopOrderAckTask = twsController.PlaceOrderAsync(stopOrderId, contract, stopLoss);
+            var entryOrderAckTask = twsController.PlaceOrderAsync(stockOrder.EntryOrderId, contract, entryOrder);
+            var takeProfitOrderAckTask = twsController.PlaceOrderAsync(stockOrder.ProfitOrderId, contract, takeProfit);
+            var stopOrderAckTask = twsController.PlaceOrderAsync(stockOrder.StopOrderId, contract, stopLoss);
             return (await Task.WhenAll(entryOrderAckTask, takeProfitOrderAckTask, stopOrderAckTask)).All(result => result);
         }
 
@@ -157,6 +199,7 @@ namespace OrderEntry.Brokers
             var contract = new Contract
             {
                 SecType = TwsContractSecType.Option,
+                LocalSymbol = $"{(optionOrder.Type == OptionType.Call ? "C" : throw new NotImplementedException())} {optionOrder.Ticker}  {optionOrder.StrikeDate:yyyyMMdd} 72 M",
                 Symbol = optionOrder.Ticker,
                 Exchange = TwsExchange.Smart,
                 PrimaryExch = TwsExchange.Island,
@@ -168,8 +211,12 @@ namespace OrderEntry.Brokers
                 TradingClass = tradingClass
             };
 
-            int entryOrderId = await twsController.GetNextValidIdAsync();
-            var takeProfitOrderId = await twsController.GetNextValidIdAsync();
+
+            if (optionOrder.EntryOrderId < 0)
+                optionOrder.EntryOrderId = await twsController.GetNextValidIdAsync();
+
+            if (optionOrder.ProfitOrderId < 0)
+                optionOrder.ProfitOrderId = await twsController.GetNextValidIdAsync();
 
             Order entryOrder = new Order()
             {
@@ -189,19 +236,21 @@ namespace OrderEntry.Brokers
                 OrderType = TwsOrderType.Limit,
                 TotalQuantity = optionOrder.Count,
                 LmtPrice = optionOrder.PotentialProfit,
-                ParentId = entryOrderId,
+                ParentId = optionOrder.EntryOrderId,
                 Tif = TwsTimeInForce.GoodTillClose,
                 Transmit = false,
             };            
 
-            var entryOrderAckTask = twsController.PlaceOrderAsync(entryOrderId, contract, entryOrder);
-            var takeProfitOrderAckTask = twsController.PlaceOrderAsync(takeProfitOrderId, contract, takeProfit);
+            var entryOrderAckTask = twsController.PlaceOrderAsync(optionOrder.EntryOrderId, contract, entryOrder);
+            var takeProfitOrderAckTask = twsController.PlaceOrderAsync(optionOrder.ProfitOrderId, contract, takeProfit);
             return (await Task.WhenAll(entryOrderAckTask, takeProfitOrderAckTask)).All(result => result);
         }
     }
 
     public interface IInteractiveBrokersService
     {
+        TradeSettings[] Trades { get; }
+
         Task Display();
 
         Task<double?> GetCurrentPrice(string ticker);
@@ -220,5 +269,7 @@ namespace OrderEntry.Brokers
         public required string AccountId { get; set; }
 
         public required int Port { get; set; }
+
+        public required TradeSettings[] Trades { get; set; }
     }
 }

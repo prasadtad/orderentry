@@ -1,18 +1,14 @@
-﻿using System.ComponentModel.DataAnnotations;
-using OrderEntry.MindfulTrader;
+﻿using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace MVC.Models
 {
-	public class ImportViewModel
+    public class ImportViewModel
 	{
-		public required Mode Mode { get; set; }
+		public Guid? TradeSettingId { get; set; }
 
-        public required Strategies Strategy { get; set; }
+        public required List<SelectListItem> TradeSettings { get; set; }
 
-        [RegularExpression("([1-9][0-9]*)", ErrorMessage = "Count must be a natural number")]
-        public required double AccountBalance { get; set; }
-
-		public required string Text { get; set; }
+		public string? Text { get; set; }
 	}
 }
 

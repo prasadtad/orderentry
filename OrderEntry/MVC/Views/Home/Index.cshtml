@@ -10,16 +10,8 @@
         {
         <fieldset>
             <div style="width: 100%; max-width: 100%; padding: 1em;">
-                @Html.LabelFor(m => m.Mode, "Select Mode:", htmlAttributes: new { style = "float: left; text-align: left; width: 10em" })
-                @Html.DropDownListFor(m => m.Mode, Html.GetEnumSelectList<OrderEntry.MindfulTrader.Mode>(), htmlAttributes: new { style = "float: inline-start; width: 20em" })
-            </div>
-            <div style="width: 100%; max-width: 100%; padding: 1em;">
-                @Html.LabelFor(m => m.Mode, "Select Strategy:", htmlAttributes: new { style = "float: left; text-align: left; width: 10em" })
-                @Html.DropDownListFor(m => m.Strategy, Html.GetEnumSelectList<OrderEntry.MindfulTrader.Strategies>(), htmlAttributes: new { style = "float: inline-start; width: 20em" })
-            </div>
-            <div style="width: 100%; max-width: 100%; padding: 1em;">
-                @Html.LabelFor(m => m.AccountBalance, "Account Balance:", htmlAttributes: new { style = "float: left; text-align: left; width: 10em" })
-                @Html.TextBoxFor(m => m.AccountBalance, htmlAttributes: new { @type = "number", style = "float: inline-start; width: 20em" })
+                @Html.LabelFor(m => m.TradeSettings, "Select Trade Setting:", htmlAttributes: new { style = "float: left; text-align: left; width: 10em" })
+                @Html.DropDownListFor(m => m.TradeSettingId, Model.TradeSettings, htmlAttributes: new { style = "float: inline-start; width: 20em" })
             </div>
             @Html.TextAreaFor(m => m.Text, 10, 50, htmlAttributes: new { style = "width: 100%; max-width: 100%; margin: 1em;" })
             <input id="Submit" type="submit" value="submit" />

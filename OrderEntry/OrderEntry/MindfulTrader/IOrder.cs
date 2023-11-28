@@ -1,8 +1,7 @@
-﻿using System;
-namespace OrderEntry.MindfulTrader
+﻿namespace OrderEntry.MindfulTrader
 {
-	public interface IOrder
-	{
+    public interface IOrder
+    {
         Guid Id { get; set; }
         DateOnly WatchDate { get; set; }
         Strategies Strategy { get; set; }
@@ -14,8 +13,10 @@ namespace OrderEntry.MindfulTrader
         double PositionValue { get; set; }
         string EarningsDate { get; set; }
         string DividendsDate { get; set; }
+        int EntryOrderId { get; set; }
+        int ProfitOrderId { get; set; }
+        int StopOrderId { get; set; }
 
         string ToString();
     }
 }
-

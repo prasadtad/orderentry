@@ -6,7 +6,7 @@
 
 <div class="text-center">
     <h1 class="display-4">@ViewBag.Strategy Option Orders $@ViewBag.AccountBalance limit</h1>
-    <hr />
+    <hr />    
     @using (Html.BeginForm("SubmitOptionOrders", "Home", FormMethod.Post))
     {
         <fieldset>
@@ -25,15 +25,18 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var optionOrder in Model)
+                    @for (var i = 0; i < Model.Count; i++)
                     {
-                        <tr style="background-color: @optionOrder.BackgroundColor">
-                            <td>@Html.HiddenFor(m => optionOrder.Id)</td>
-                            <td>@Html.CheckBoxFor(m => @optionOrder.Selected)</td>
-                            <td>@optionOrder.Description</td>
-                            <td>@optionOrder.PositionValue</td>
-                            <td><button onclick="copyText('@optionOrder.TOSEntry')">@optionOrder.TOSEntry</button></td>
-                            <td><button onclick="copyText('@optionOrder.TOSProfit')">@optionOrder.TOSProfit</button></td>                            
+                        <tr style="background-color: @Model[i].BackgroundColor">
+                            <td>@Html.HiddenFor(m => @Model[i].Id)</td>
+                            <td>
+                                @Html.CheckBoxFor(m => @Model[i].Selected)
+                                @Html.HiddenFor(m => @Model[i].Selected)
+                            </td>
+                            <td>@Model[i].Description</td>
+                            <td>@Model[i].PositionValue</td>
+                            <td><input type="button" onclick="copyText('@Model[i].TOSEntry')" value="@Model[i].TOSEntry" /></td>
+                            <td><input type="button" onclick="copyText('@Model[i].TOSProfit')" value="@Model[i].TOSProfit" /></td>
                         </tr>
                     }
                 </tbody>
@@ -42,6 +45,9 @@
     }
 </div>
 
-<script>function copyText(text) {
+<script>
+    function copyText(text) {
         navigator.clipboard.writeText(text);
-    }</script>
+        return false;
+    }
+</script>

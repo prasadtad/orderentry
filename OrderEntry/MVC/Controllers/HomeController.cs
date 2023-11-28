@@ -1,7 +1,10 @@
 ﻿using System.Diagnostics;
 using IBApi;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Playwright;
 using MVC.Models;
 using OrderEntry.Brokers;
 using OrderEntry.MindfulTrader;
@@ -97,7 +100,13 @@ public class HomeController : Controller
 
     public IActionResult Index()
     {
-        return View();
+        return View(new ImportViewModel
+        {
+            TradeSettings = interactiveBrokersService.Trades
+                    .UnionBy(ameritradeService.Trades, t => t.ToString())
+                    .Select(t => new SelectListItem {  Text = t.ToString(), Value = t.Id.ToString() })
+                    .ToList()
+        });
     }
 
     public IActionResult Privacy()
@@ -160,22 +169,32 @@ public class HomeController : Controller
     }
 
     [HttpPost]
-    public void ImportOrders(ImportViewModel model)
+    public async Task ImportOrders(ImportViewModel model)
     {
-        if (model.Mode == Mode.Stocks)
+        if (model.TradeSettingId == null) return;
+
+        var tradeSetting = interactiveBrokersService.Trades.SingleOrDefault(t => t.Id == model.TradeSettingId) ??
+            ameritradeService.Trades.Single(t => t.Id == model.TradeSettingId);
+        if (tradeSetting.Mode == Mode.Stocks)
         {
-            memoryCache.Set(ImportedStockAccountBalanceKey, model.AccountBalance);
-            memoryCache.Set(ImportedStockStrategyKey, model.Strategy);
-            memoryCache.Set(ImportedStockOrdersKey, parserService.ParseWatchlist(model.Text, Mode.Stocks, model.Strategy, model.AccountBalance)                
-                .Cast<StockOrder>().ToList());
+            memoryCache.Set(ImportedStockAccountBalanceKey, tradeSetting.AccountBalance);
+            memoryCache.Set(ImportedStockStrategyKey, tradeSetting.Strategy);
+            var orders = (string.IsNullOrWhiteSpace(model.Text) ?
+                await parserService.GetWatchlist(tradeSetting, "Content/Images/screenshot.png") :
+                parserService.ParseWatchlist(model.Text, tradeSetting))
+                .Cast<StockOrder>().OrderBy(s => s.DistanceInATRs).ToList();
+            memoryCache.Set(ImportedStockOrdersKey, orders);            
             Response.Redirect("Stocks");
         }
-        else if (model.Mode == Mode.Options)
+        else if (tradeSetting.Mode == Mode.Options)
         {
-            memoryCache.Set(ImportedOptionAccountBalanceKey, model.AccountBalance);
-            memoryCache.Set(ImportedOptionStrategyKey, model.Strategy);
-            memoryCache.Set(ImportedOptionOrdersKey, parserService.ParseWatchlist(model.Text, Mode.Options, model.Strategy, model.AccountBalance)
-                .Cast<OptionOrder>().ToList());
+            memoryCache.Set(ImportedOptionAccountBalanceKey, tradeSetting.AccountBalance);
+            memoryCache.Set(ImportedOptionStrategyKey, tradeSetting.Strategy);
+            var orders = (string.IsNullOrWhiteSpace(model.Text) ?
+                await parserService.GetWatchlist(tradeSetting, "Content/Images/screenshot.png") :
+                parserService.ParseWatchlist(model.Text, tradeSetting))
+                .Cast<OptionOrder>().ToList();
+            memoryCache.Set(ImportedOptionOrdersKey, orders);
             Response.Redirect("Options");
         }
         else
