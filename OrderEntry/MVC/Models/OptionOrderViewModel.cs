@@ -12,7 +12,7 @@
 
         public required string TOSProfit { get; set; }
 
-        public required double PositionValue { get; set; }
+        public required decimal PositionValue { get; set; }
 
         public required string BackgroundColor { get; set; }
     }

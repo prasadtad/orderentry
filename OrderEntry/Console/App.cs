@@ -1,4 +1,5 @@
 ﻿using OrderEntry.Brokers;
+using OrderEntry.Database;
 using OrderEntry.MindfulTrader;
 
 namespace OrderEntry
@@ -6,40 +7,42 @@ namespace OrderEntry
     public class App
     {
         private readonly IInteractiveBrokersService interactiveBrokersService;
-        private readonly ITDAmeritradeService ameritradeService;
-        private readonly IParserService parserService;
+        private readonly ICharlesSchwabService charlesSchwabService;
+        private readonly IMindfulTraderService mindfulTraderService;
+        private readonly IDatabaseService databaseService;
 
-        public App(IInteractiveBrokersService interactiveBrokersService, ITDAmeritradeService ameritradeService, IParserService parserService)
+        public App(IInteractiveBrokersService interactiveBrokersService, ICharlesSchwabService charlesSchwabService, IMindfulTraderService mindfulTraderService, IDatabaseService databaseService)
         {
             this.interactiveBrokersService = interactiveBrokersService;
-            this.ameritradeService = ameritradeService;
-            this.parserService = parserService;
+            this.charlesSchwabService = charlesSchwabService;
+            this.mindfulTraderService = mindfulTraderService;
+            this.databaseService = databaseService;
         }
 
         public async Task Run()
         {
             DateOnly currentDateInEst = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTime.Now, TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time")));
 
-            var tradesWithOrders = new List<(TradeSettings tradeSettings, List<IOrder> orders)>();
-            foreach (var tradeSetting in interactiveBrokersService.Trades)
-                tradesWithOrders.Add((tradeSetting, (await parserService.GetWatchlist(tradeSetting))
+            var tradesWithOrders = new List<(ParseSetting parseSetting, List<IOrder> orders)>();
+            foreach (var parseSetting in await databaseService.GetParseSettings())
+                tradesWithOrders.Add((parseSetting, (await mindfulTraderService.GetWatchlist(parseSetting))
                     .Where(s => s.WatchDate == currentDateInEst && s.Count > 0).ToList()));
 
             var periodicTimer = new PeriodicTimer(TimeSpan.FromMinutes(1));            
             while (await periodicTimer.WaitForNextTickAsync())
             {
-                foreach (var (tradeSettings, orders) in tradesWithOrders)
+                foreach (var (parseSetting, orders) in tradesWithOrders)
                 {
-                    await ReSubmitOrders(tradeSettings, orders);
+                    await ReSubmitOrders(parseSetting, orders);
                 }
             }
         }
 
-        private async Task ReSubmitOrders(TradeSettings tradeSettings, List<IOrder> orders)
+        private async Task ReSubmitOrders(ParseSetting parseSetting, List<IOrder> orders)
         {
             var ordersWithoutPositions = await interactiveBrokersService.GetOrdersWithoutPositions(orders);
             var ordersWithPositions = orders.Except(ordersWithoutPositions).ToList();
-            var ordersWithPrices = new List<(IOrder order, double price)>();
+            var ordersWithPrices = new List<(IOrder order, decimal price)>();
             foreach (var order in ordersWithoutPositions)
             {
                 if (order is OptionOrder) throw new NotImplementedException();
@@ -48,10 +51,10 @@ namespace OrderEntry
                 if (price != null) ordersWithPrices.Add((order, price.Value));
             }
 
-            double balance = ordersWithPositions.Sum(o => o.PositionValue);
-            if (balance >= tradeSettings.AccountBalance)
+            var balance = ordersWithPositions.Sum(o => o.PositionValue);
+            if (balance >= parseSetting.AccountBalance)
             {
-                Console.WriteLine($"IB orders with positions balance {balance} >= allowed {tradeSettings.AccountBalance}");
+                Console.WriteLine($"IB orders with positions balance {balance} >= allowed {parseSetting.AccountBalance}");
                 return;
             }
 
@@ -63,7 +66,7 @@ namespace OrderEntry
                     Console.WriteLine($"Submitted {order}");
                 }
 
-                if (balance > tradeSettings.AccountBalance) break;
+                if (balance > parseSetting.AccountBalance) break;
             }
         }
     }

@@ -2,21 +2,22 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
+using OrderEntry.Database;
 
 namespace OrderEntry.MindfulTrader
 {
-    public class ParserService : IParserService
-	{
-		private readonly ILogger<ParserService> logger;
+    public class MindfulTraderService : IMindfulTraderService
+    {
+		private readonly ILogger<MindfulTraderService> logger;
         private readonly IOptions<MindfulTraderSettings> options;
 
-		public ParserService(ILogger<ParserService> logger, IOptions<MindfulTraderSettings> options)
+		public MindfulTraderService(ILogger<MindfulTraderService> logger, IOptions<MindfulTraderSettings> options)
 		{
 			this.logger = logger;
             this.options = options;
 		}
 
-        public async Task<List<IOrder>> GetWatchlist(TradeSettings tradeSettings, string? screenshotPath = null)
+        public async Task<List<IOrder>> GetWatchlist(ParseSetting tradeSettings, string? screenshotPath = null)
         {
             using var playwright = await Playwright.CreateAsync();
             await using var browser = await playwright.Chromium.LaunchAsync();
@@ -50,9 +51,9 @@ namespace OrderEntry.MindfulTrader
             await page.Locator("#buying_powerW").SetCheckedAsync(false);
             await page.Locator("#filter_strategy").SelectOptionAsync(new[] { tradeSettings.Strategy == Strategies.MainPullback ? "Main Pullback" : tradeSettings.Strategy == Strategies.DoubleDown ? "Double Down" : throw new NotImplementedException() });
 
-            var viewMoreClass = tradeSettings.Mode == Mode.Stocks ? "load_more_1" :
-                                tradeSettings.Mode == Mode.Options ? "load_more_2" :
-                                tradeSettings.Mode == Mode.LowPricedStocks ? "load_more_3" :
+            var viewMoreClass = tradeSettings.Mode == Modes.Stock ? "load_more_1" :
+                                tradeSettings.Mode == Modes.Option ? "load_more_2" :
+                                tradeSettings.Mode == Modes.LowPricedStock ? "load_more_3" :
                                 throw new NotImplementedException();
             await page.Locator($"[class='{viewMoreClass}']").ClickAsync();
 
@@ -64,7 +65,7 @@ namespace OrderEntry.MindfulTrader
             var list = new List<IOrder>();
             switch (tradeSettings.Mode)
             {
-                case Mode.Stocks:
+                case Modes.Stock:
                     foreach (var row in await page.Locator("#favorite_stocks")
                                      .Locator("tr").AllAsync())
                     {
@@ -76,7 +77,7 @@ namespace OrderEntry.MindfulTrader
                         if (order != null) list.Add(order);
                     }
                     break;
-                case Mode.Options:
+                case Modes.Option:
                     foreach (var row in await page.Locator("#options")
                                      .Locator("tr").AllAsync())
                     {
@@ -88,7 +89,7 @@ namespace OrderEntry.MindfulTrader
                         if (order != null) list.Add(order);
                     }
                     break;
-                case Mode.LowPricedStocks:
+                case Modes.LowPricedStock:
                     foreach (var row in await page.Locator("#low_price_stocks")
                                      .Locator("tr").AllAsync())
                     {
@@ -105,7 +106,7 @@ namespace OrderEntry.MindfulTrader
             return list;
         }
 
-		public List<IOrder> ParseWatchlist(string watchlistText, TradeSettings tradeSettings)
+		public List<IOrder> ParseWatchlist(string watchlistText, ParseSetting tradeSettings)
 		{
             var readOrders = false;
 
@@ -128,7 +129,7 @@ namespace OrderEntry.MindfulTrader
                     }
                     if (readAccountBalance != null && readAccountBalance.Value)
                     {
-                        if (double.Parse(line) != tradeSettings.AccountBalance)
+                        if (decimal.Parse(line) != tradeSettings.AccountBalance)
                             throw new Exception($"Acccount balance {line} doesn't match expected {tradeSettings.AccountBalance}");
                         readAccountBalance = false;
                         continue;
@@ -167,9 +168,9 @@ namespace OrderEntry.MindfulTrader
 
                     if (!readOrders || line.StartsWith("Watch Date")) continue;
 
-                    var order = tradeSettings.Mode == Mode.Options ? ReadOptionOrder(line) :
-                                tradeSettings.Mode == Mode.Stocks ? ReadStockOrder(line, false) :
-                                tradeSettings.Mode == Mode.LowPricedStocks ? ReadStockOrder(line, true) :
+                    var order = tradeSettings.Mode == Modes.Option ? ReadOptionOrder(line) :
+                                tradeSettings.Mode == Modes.Stock ? ReadStockOrder(line, false) :
+                                tradeSettings.Mode == Modes.LowPricedStock ? ReadStockOrder(line, true) :
                                 throw new NotImplementedException($"Unsupported mode {tradeSettings.Mode}");
                     if (order != null && order.Strategy == tradeSettings.Strategy)
                     {
@@ -194,14 +195,14 @@ namespace OrderEntry.MindfulTrader
                     WatchDate = DateOnly.ParseExact(tokens[0], "MM/dd/yyyy"),
                     Strategy = tokens[1] == "Main" && tokens[2] == "Pullback" ? Strategies.MainPullback : tokens[1] == "Double" && tokens[2] == "Down" ? Strategies.DoubleDown : throw new NotImplementedException($"Unsupported strategy {tokens[1]} {tokens[2]}"),
                     Ticker = tokens[3],
-                    StrikeDate = DateOnly.ParseExact($"{tokens[4]}/{tokens[5]}/{tokens[6]}", "MMM/dd/yyyy"),
-                    StrikePrice = double.TryParse(tokens[7].TrimStart('$'), out var strikePrice) ? strikePrice : 0,
+                    StrikeDate = DateOnly.ParseExact($"{tokens[4]}/{tokens[5]}/{tokens[6]}", "MMM/d/yyyy"),
+                    StrikePrice = decimal.TryParse(tokens[7].TrimStart('$'), out var strikePrice) ? strikePrice : 0,
                     Type = tokens[8] == "Call" ? OptionType.Call : throw new NotImplementedException($"Unsupported option type {tokens[8]}"),
                     Count = int.TryParse(tokens[9], out var count) ? count : 0,
-                    PotentialEntry = double.Parse(tokens[10]),
-                    PotentialProfit = double.Parse(tokens[11]),
-                    PotentialStop = double.Parse(tokens[12]),
-                    PositionValue = double.TryParse(tokens[13].TrimStart('$'), out var positionValue) ? positionValue : 0,
+                    PotentialEntry = decimal.Parse(tokens[10]),
+                    PotentialProfit = decimal.Parse(tokens[11]),
+                    PotentialStop = decimal.Parse(tokens[12]),
+                    PositionValue = decimal.TryParse(tokens[13].TrimStart('$'), out var positionValue) ? positionValue : 0,
                     EarningsDate = tokens[14],
                     DividendsDate = tokens[15],
                     EntryOrderId = -1,
@@ -229,12 +230,12 @@ namespace OrderEntry.MindfulTrader
                     Strategy = tokens[1] == "Main" && tokens[2] == "Pullback" ? Strategies.MainPullback : tokens[1] == "Double" && tokens[2] == "Down" ? Strategies.DoubleDown : throw new NotImplementedException($"Invalid strategy {tokens[1]} {tokens[2]}"),
                     Ticker = tokens[3],
                     Count = int.TryParse(tokens[4], out var count) ? count : 0,
-                    PotentialEntry = double.Parse(tokens[5]),
-                    PotentialProfit = double.Parse(tokens[6]),
-                    PotentialStop = double.Parse(tokens[7]),
-                    CurrentPrice = double.Parse(tokens[8]),
-                    DistanceInATRs = double.Parse(tokens[9]),
-                    PositionValue = double.TryParse(tokens[10].TrimStart('$'), out var positionValue) ? positionValue : 0,
+                    PotentialEntry = decimal.Parse(tokens[5]),
+                    PotentialProfit = decimal.Parse(tokens[6]),
+                    PotentialStop = decimal.Parse(tokens[7]),
+                    CurrentPrice = decimal.Parse(tokens[8]),
+                    DistanceInATRs = decimal.Parse(tokens[9]),
+                    PositionValue = decimal.TryParse(tokens[10].TrimStart('$'), out var positionValue) ? positionValue : 0,
                     EarningsDate = tokens[11],
                     DividendsDate = tokens[12],
                     EntryOrderId = -1,
@@ -250,33 +251,10 @@ namespace OrderEntry.MindfulTrader
         }
 	}
 
-	public interface IParserService
+	public interface IMindfulTraderService
 	{
-        Task<List<IOrder>> GetWatchlist(TradeSettings tradeSettings, string? screenshotPath = null);
+        Task<List<IOrder>> GetWatchlist(ParseSetting tradeSettings, string? screenshotPath = null);
 
-        List<IOrder> ParseWatchlist(string watchlist, TradeSettings tradeSettings);
-    }
-
-    public class TradeSettings
-    {
-        public readonly Guid Id = Guid.NewGuid();
-
-        public required double AccountBalance { get; set; }
-
-        public required Strategies Strategy { get; set; }
-
-        public required Mode Mode { get; set; }
-
-        public override string ToString()
-        {
-            return $"{Mode} {Strategy} {AccountBalance}";
-        }
-    }
-
-    public class MindfulTraderSettings
-    {
-        public required string Username { get; set; }
-
-        public required string Password { get; set; }
-    }
+        List<IOrder> ParseWatchlist(string watchlist, ParseSetting tradeSettings);
+    }    
 }

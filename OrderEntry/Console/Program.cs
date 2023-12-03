@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OrderEntry.Brokers;
+using OrderEntry.Database;
 using OrderEntry.MindfulTrader;
 
 namespace OrderEntry
@@ -34,15 +35,17 @@ namespace OrderEntry
                         };
                     });
                 })
-                .ConfigureServices((b, services) =>
+                .ConfigureServices((builder, services) =>
                 {
                     services.AddHttpClient();
-                    services.Configure<TDAmeritradeSettings>(b.Configuration.GetSection(nameof(TDAmeritradeSettings)));
-                    services.Configure<InteractiveBrokersSettings>(b.Configuration.GetSection(nameof(InteractiveBrokersSettings)));
-                    services.Configure<MindfulTraderSettings>(b.Configuration.GetSection(nameof(MindfulTraderSettings)));
+                    services.Configure<MindfulTraderSettings>(builder.Configuration.GetSection("MindfulTrader"));
+                    services.Configure<DatabaseSettings>(builder.Configuration.GetSection("Database"));
+                    services.Configure<CharlesSchwabSettings>(builder.Configuration.GetSection("CharlesSchwab"));
+                    services.Configure<InteractiveBrokersSettings>(builder.Configuration.GetSection("InteractiveBrokers"));
                     services.AddSingleton<IInteractiveBrokersService, InteractiveBrokersService>();
-                    services.AddSingleton<ITDAmeritradeService, TDAmeritradeService>();
-                    services.AddSingleton<IParserService, ParserService>();
+                    services.AddSingleton<ICharlesSchwabService, CharlesSchwabService>();
+                    services.AddSingleton<IMindfulTraderService, MindfulTraderService>();
+                    services.AddSingleton<IDatabaseService, DatabaseService>();
                     services.AddSingleton<App>();
                 })
                 .ConfigureAppConfiguration((h, c) =>

@@ -7,23 +7,21 @@ using OrderEntry.MindfulTrader;
 
 namespace OrderEntry.Brokers
 {
-    public class TDAmeritradeService: ITDAmeritradeService
-	{
+    public class CharlesSchwabService : ICharlesSchwabService
+    {
         private readonly HttpClient httpClient;
-        private readonly IOptions<TDAmeritradeSettings> options;
+        private readonly IOptions<CharlesSchwabSettings> options;
 
         private TDAuthResult? authResult;
         private bool isSignedIn = false;
 
-        public TradeSettings[] Trades => options.Value.Trades;
-
-        public TDAmeritradeService(HttpClient httpClient, IOptions<TDAmeritradeSettings> options)
+        public CharlesSchwabService(HttpClient httpClient, IOptions<CharlesSchwabSettings> options)
 		{
             this.httpClient = httpClient;
 			this.options = options;
         }
 
-        (string entry, string profit, string stop) ITDAmeritradeService.GetPastableFormat(StockOrder order)
+        (string entry, string profit, string stop) ICharlesSchwabService.GetPastableFormat(StockOrder order)
         {
             return
             (
@@ -33,7 +31,7 @@ namespace OrderEntry.Brokers
             );
         }
 
-        (string entry, string profit) ITDAmeritradeService.GetPastableFormat(OptionOrder order)
+        (string entry, string profit) ICharlesSchwabService.GetPastableFormat(OptionOrder order)
         {
             return
             (
@@ -159,21 +157,12 @@ namespace OrderEntry.Brokers
         }
     }
 
-	public interface ITDAmeritradeService
-	{
-        TradeSettings[] Trades { get; }
-
+	public interface ICharlesSchwabService
+    {
         (string entry, string profit, string stop) GetPastableFormat(StockOrder order);
 
         (string entry, string profit) GetPastableFormat(OptionOrder order);
 
         Task Authenticate();
-    }
-
-    public class TDAmeritradeSettings
-    {
-        public required string ConsumerKey { get; set; }
-
-        public required TradeSettings[] Trades { get; set; }
     }
 }

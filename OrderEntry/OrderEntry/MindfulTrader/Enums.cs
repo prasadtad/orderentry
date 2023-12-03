@@ -1,14 +1,16 @@
 ﻿namespace OrderEntry.MindfulTrader
 {
-    public enum Mode
+    public enum Modes
     {
-        Stocks,
-        Options,
-        LowPricedStocks
+		None,
+        Stock,
+        Option,
+        LowPricedStock
     }
 
     public enum Strategies
 	{
+		None,
 		MainPullback,
 		DoubleDown
 	}
@@ -16,5 +18,14 @@
 	public enum OptionType
 	{
 		Call
+	}
+
+	public enum ParseTypes
+	{
+		Live,
+		Watchlist,
+		Options,
+		DoubleDown,
+		TriggeredList
 	}
 }

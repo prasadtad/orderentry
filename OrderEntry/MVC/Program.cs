@@ -1,17 +1,21 @@
 ﻿using Microsoft.Extensions.FileProviders;
+using OrderEntry;
 using OrderEntry.Brokers;
+using OrderEntry.Database;
 using OrderEntry.MindfulTrader;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddHttpClient();
-builder.Services.Configure<TDAmeritradeSettings>(builder.Configuration.GetSection(nameof(TDAmeritradeSettings)));
-builder.Services.Configure<InteractiveBrokersSettings>(builder.Configuration.GetSection(nameof(InteractiveBrokersSettings)));
-builder.Services.Configure<MindfulTraderSettings>(builder.Configuration.GetSection(nameof(MindfulTraderSettings)));
+builder.Services.Configure<MindfulTraderSettings>(builder.Configuration.GetSection("MindfulTrader"));
+builder.Services.Configure<DatabaseSettings>(builder.Configuration.GetSection("Database"));
+builder.Services.Configure<CharlesSchwabSettings>(builder.Configuration.GetSection("CharlesSchwab"));
+builder.Services.Configure<InteractiveBrokersSettings>(builder.Configuration.GetSection("InteractiveBrokers"));
 builder.Services.AddSingleton<IInteractiveBrokersService, InteractiveBrokersService>();
-builder.Services.AddSingleton<ITDAmeritradeService, TDAmeritradeService>();
-builder.Services.AddSingleton<IParserService, ParserService>();
+builder.Services.AddSingleton<ICharlesSchwabService, CharlesSchwabService>();
+builder.Services.AddSingleton<IMindfulTraderService, MindfulTraderService>();
+builder.Services.AddSingleton<IDatabaseService, DatabaseService>();
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();

@@ -8,12 +8,12 @@
 		public required Strategies Strategy { get; set; }
 		public required string Ticker { get; set; }
 		public required int Count { get; set; }
-		public required double PotentialEntry { get; set; }
-		public required double PotentialProfit { get; set; }
-		public required double PotentialStop { get; set; }
-		public required double CurrentPrice { get; set; }
-		public required double DistanceInATRs { get; set; }
-		public required double PositionValue { get; set; }
+		public required decimal PotentialEntry { get; set; }
+		public required decimal PotentialProfit { get; set; }
+		public required decimal PotentialStop { get; set; }
+		public required decimal CurrentPrice { get; set; }
+		public required decimal DistanceInATRs { get; set; }
+		public required decimal PositionValue { get; set; }
 		public required string EarningsDate { get; set; }
 		public required string DividendsDate { get; set; }
         public required int EntryOrderId { get; set; }

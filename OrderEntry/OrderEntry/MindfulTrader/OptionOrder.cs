@@ -7,13 +7,13 @@
         public required Strategies Strategy { get; set; }
         public required string Ticker { get; set; }
         public required DateOnly StrikeDate { get; set; }
-        public required double StrikePrice { get; set; }
+        public required decimal StrikePrice { get; set; }
         public required OptionType Type { get; set; }
         public required int Count { get; set; }
-        public required double PotentialEntry { get; set; }
-        public required double PotentialProfit { get; set; }
-        public required double PotentialStop { get; set; }
-        public required double PositionValue { get; set; }
+        public required decimal PotentialEntry { get; set; }
+        public required decimal PotentialProfit { get; set; }
+        public required decimal PotentialStop { get; set; }
+        public required decimal PositionValue { get; set; }
         public required string EarningsDate { get; set; }
         public required string DividendsDate { get; set; }
         public required int EntryOrderId { get; set; }

@@ -1,5 +1,6 @@
 ﻿using AutoFinance.Broker.InteractiveBrokers;
 using AutoFinance.Broker.InteractiveBrokers.Constants;
+using AutoFinance.Broker.InteractiveBrokers.EventArgs;
 using IBApi;
 using Microsoft.Extensions.Options;
 using OrderEntry.MindfulTrader;
@@ -17,8 +18,6 @@ namespace OrderEntry.Brokers
             this.twsObjectFactory = new TwsObjectFactory("localhost", options.Value.Port, 1);
         }
 
-        public TradeSettings[] Trades => options.Value.Trades;
-
         public async Task Display()
         {
             Console.WriteLine($"IB: Connecting...");
@@ -32,7 +31,7 @@ namespace OrderEntry.Brokers
                 Console.WriteLine($"{key}={account[key]}");
         }
 
-        public async Task<double?> GetCurrentPrice(string ticker)
+        public async Task<decimal?> GetCurrentPrice(string ticker)
         {
             var twsController = twsObjectFactory.TwsControllerBase;
             await twsController.EnsureConnectedAsync();
@@ -46,30 +45,42 @@ namespace OrderEntry.Brokers
                 Currency = TwsCurrency.Usd
             };
 
-            var askPrices = new Dictionary<int, double>();
-            twsObjectFactory.TwsCallbackHandler.TickPriceEvent += (sender, args) =>
+            var askPrices = new Dictionary<int, decimal>();
+            void tickPriceHandler(object? sender, TickPriceEventArgs args)
             {
                 if (args.Field == 2)  // Ask price
-                    askPrices.Add(args.TickerId, args.Price);
-            };
-
-            twsController.RequestMarketDataType(1);   // Live
-            
-            var result = await twsController.RequestMarketDataAsync(contract, string.Empty, true, false, null);
-            for (var i = 0; i < 10; i++)
-            {
-                await Task.Delay(1000);
-                if (askPrices.Count > 0) break;
+                    askPrices.Add(args.TickerId, Convert.ToDecimal(args.Price));
             }
-            twsController.CancelMarketData(result.TickerId);
 
-            if (askPrices.Count == 0 || !askPrices.TryGetValue(result.TickerId, out var askPrice))
+            int requestId;
+            try
+            {
+                twsObjectFactory.TwsCallbackHandler.TickPriceEvent += tickPriceHandler;
+
+                twsController.RequestMarketDataType(4);   // Frozen
+                
+                requestId = (await twsController.RequestMarketDataAsync(contract, string.Empty, true, false, null))
+                                .TickerId;
+                for (var i = 0; i < 10; i++)
+                {
+                    await Task.Delay(1000);
+                    if (askPrices.Count > 0) break;
+                }
+            }
+            finally
+            {
+                twsObjectFactory.TwsCallbackHandler.TickPriceEvent -= tickPriceHandler;
+            }
+
+            twsController.CancelMarketData(requestId);
+
+            if (askPrices.Count == 0 || !askPrices.TryGetValue(requestId, out var askPrice))
                 return null;
 
             return askPrice;
         }
 
-        public async Task<(double price, string tradingClass)?> GetCurrentPrice(string ticker, double strikePrice, DateOnly strikeDate, OptionType type)
+        public async Task<(decimal price, string tradingClass)?> GetCurrentPrice(string ticker, decimal strikePrice, DateOnly strikeDate, OptionType type)
         {
             var twsController = twsObjectFactory.TwsControllerBase;
             await twsController.EnsureConnectedAsync();
@@ -78,7 +89,7 @@ namespace OrderEntry.Brokers
             {
                 SecType = TwsContractSecType.Option,
                 Symbol = ticker,
-                Strike = strikePrice,
+                Strike = Convert.ToDouble(strikePrice),
                 LastTradeDateOrContractMonth = strikeDate.ToString("yyyyMMdd"),
                 Right = type == OptionType.Call ? "C" : throw new NotImplementedException(),
                 Exchange = TwsExchange.Smart,
@@ -86,11 +97,11 @@ namespace OrderEntry.Brokers
                 Currency = TwsCurrency.Usd
             };
 
-            Dictionary<int, double> askPrices = new Dictionary<int, double>();
+            Dictionary<int, decimal> askPrices = new Dictionary<int, decimal>();
             twsObjectFactory.TwsCallbackHandler.TickPriceEvent += (sender, args) =>
             {
                 if (args.Field == 2)  // Ask price
-                    askPrices.Add(args.TickerId, args.Price);
+                    askPrices.Add(args.TickerId, Convert.ToDecimal(args.Price));
             };
 
             twsController.RequestMarketDataType(2);   // Frozen
@@ -154,7 +165,7 @@ namespace OrderEntry.Brokers
                 Action = TwsOrderActions.Buy,
                 OrderType = TwsOrderType.Limit,
                 TotalQuantity = stockOrder.Count,
-                LmtPrice = stockOrder.PotentialEntry,
+                LmtPrice = Convert.ToDouble(stockOrder.PotentialEntry),
                 Tif = "Day",
                 Transmit = false,
             };
@@ -165,7 +176,7 @@ namespace OrderEntry.Brokers
                 Action = TwsOrderActions.Sell,
                 OrderType = TwsOrderType.Limit,
                 TotalQuantity = stockOrder.Count,
-                LmtPrice = stockOrder.PotentialProfit,
+                LmtPrice = Convert.ToDouble(stockOrder.PotentialProfit),
                 ParentId = stockOrder.EntryOrderId,
                 Tif = TwsTimeInForce.GoodTillClose,
                 Transmit = false,
@@ -177,7 +188,7 @@ namespace OrderEntry.Brokers
                 Action = TwsOrderActions.Sell,
                 OrderType = TwsOrderType.StopLoss,
                 TotalQuantity = stockOrder.Count,
-                AuxPrice = stockOrder.PotentialStop,
+                AuxPrice = Convert.ToDouble(stockOrder.PotentialStop),
                 ParentId = stockOrder.EntryOrderId,
                 Tif = TwsTimeInForce.GoodTillClose,
                 Transmit = true,
@@ -205,7 +216,7 @@ namespace OrderEntry.Brokers
                 PrimaryExch = TwsExchange.Island,
                 Currency = TwsCurrency.Usd,
                 LastTradeDateOrContractMonth = optionOrder.StrikeDate.ToString("yyyyMMdd"),
-                Strike = optionOrder.StrikePrice,
+                Strike = Convert.ToDouble(optionOrder.StrikePrice),
                 Right = optionOrder.Type == OptionType.Call ? "C" : throw new NotImplementedException(),
                 Multiplier = "100",
                 TradingClass = tradingClass
@@ -224,7 +235,7 @@ namespace OrderEntry.Brokers
                 Action = TwsOrderActions.Buy,
                 OrderType = TwsOrderType.Limit,
                 TotalQuantity = optionOrder.Count,
-                LmtPrice = optionOrder.PotentialEntry,
+                LmtPrice = Convert.ToDouble(optionOrder.PotentialEntry),
                 Tif = "Day",
                 Transmit = false,
             };
@@ -235,7 +246,7 @@ namespace OrderEntry.Brokers
                 Action = TwsOrderActions.Sell,
                 OrderType = TwsOrderType.Limit,
                 TotalQuantity = optionOrder.Count,
-                LmtPrice = optionOrder.PotentialProfit,
+                LmtPrice = Convert.ToDouble(optionOrder.PotentialProfit),
                 ParentId = optionOrder.EntryOrderId,
                 Tif = TwsTimeInForce.GoodTillClose,
                 Transmit = false,
@@ -249,27 +260,16 @@ namespace OrderEntry.Brokers
 
     public interface IInteractiveBrokersService
     {
-        TradeSettings[] Trades { get; }
-
         Task Display();
 
-        Task<double?> GetCurrentPrice(string ticker);
+        Task<decimal?> GetCurrentPrice(string ticker);
 
-        Task<(double price, string tradingClass)?> GetCurrentPrice(string ticker, double strikePrice, DateOnly strikeDate, OptionType type);
+        Task<(decimal price, string tradingClass)?> GetCurrentPrice(string ticker, decimal strikePrice, DateOnly strikeDate, OptionType type);
 
         Task<List<IOrder>> GetOrdersWithoutPositions(IEnumerable<IOrder> orders);
 
         Task<bool> Submit(StockOrder order);
 
         Task<bool> Submit(OptionOrder optionOrder, string tradingClass);
-    }
-
-    public class InteractiveBrokersSettings
-    {
-        public required string AccountId { get; set; }
-
-        public required int Port { get; set; }
-
-        public required TradeSettings[] Trades { get; set; }
-    }
+    }    
 }
