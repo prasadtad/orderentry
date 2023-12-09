@@ -1,18 +1,22 @@
-﻿using OrderEntry.MindfulTrader;
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using OrderEntry.MindfulTrader;
 
 namespace OrderEntry.Database
 {
+    [Table("parse_setting")]
     public class ParseSetting
     {
-        public required string Key { get; set; }
+        [Key]
+        [Column("key")] public required string Key { get; set; }
 
-        public required ParseTypes ParseType { get; set; }
+        [Column("parse_type")] public required ParseTypes ParseType { get; set; }
 
-        public required decimal AccountBalance { get; set; }
+        [Column("account_balance")] public required decimal AccountBalance { get; set; }
 
-        public required Strategies Strategy { get; set; }
+        [Column("strategy")] public required Strategies Strategy { get; set; }
 
-        public required Modes Mode { get; set; }
+        [Column("mode")] public required Modes Mode { get; set; }
 
         public override string ToString()
         {

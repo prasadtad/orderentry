@@ -1,31 +1,33 @@
-﻿namespace OrderEntry.MindfulTrader
+﻿using NpgsqlTypes;
+
+namespace OrderEntry.MindfulTrader
 {
     public enum Modes
     {
-		None,
-        Stock,
-        Option,
-        LowPricedStock
+		[PgName("none")] None,
+        [PgName("stock")] Stock,
+        [PgName("option")] Option,
+        [PgName("low_priced_stock")] LowPricedStock
     }
 
     public enum Strategies
 	{
-		None,
-		MainPullback,
-		DoubleDown
+		[PgName("none")] None,
+		[PgName("main_pullback")] MainPullback,
+		[PgName("double_down")] DoubleDown
 	}
 
-	public enum OptionType
+	public enum OptionTypes
 	{
-		Call
+		[PgName("call")] Call
 	}
 
 	public enum ParseTypes
 	{
-		Live,
-		Watchlist,
-		Options,
-		DoubleDown,
-		TriggeredList
+		[PgName("live")] Live,
+		[PgName("watchlist")] Watchlist,
+		[PgName("options")] Options,
+		[PgName("double_down")] DoubleDown,
+		[PgName("triggered_list")] TriggeredList
 	}
 }

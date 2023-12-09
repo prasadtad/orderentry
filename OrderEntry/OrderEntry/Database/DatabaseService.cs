@@ -1,75 +1,66 @@
-﻿using Microsoft.Extensions.Options;
-using Npgsql;
+﻿using Microsoft.EntityFrameworkCore;
 using OrderEntry.MindfulTrader;
 
 namespace OrderEntry.Database
 {
-    public class DatabaseService : IDatabaseService
-	{
-		private readonly IOptions<DatabaseSettings> options;
+    public class DatabaseService(OrderEntryDbContext context) : IDatabaseService
+    {
+        private readonly OrderEntryDbContext context = context;
 
-		public DatabaseService(IOptions<DatabaseSettings> options)
-		{
-			this.options = options;
-		}
-
-		public async Task<List<ParseSetting>> GetParseSettings()
+        public async Task<List<ParseSetting>> GetParseSettings()
         {
-            var parseSettings = new List<ParseSetting>();
-
-            using (var conn = await OpenConnection())
-            using (var cmd = new NpgsqlCommand("SELECT * FROM parsesetting", conn))
-            using (var reader = cmd.ExecuteReader())
-            while (await reader.ReadAsync())
-            {
-                parseSettings.Add(new ParseSetting
-                {
-                    Key = Read<string>(reader, nameof(ParseSetting.Key))!,
-                    AccountBalance = Read<decimal>(reader, nameof(ParseSetting.AccountBalance)),
-                    ParseType = Read<ParseTypes>(reader, nameof(ParseSetting.ParseType)),
-                    Mode = Read<Modes>(reader, nameof(ParseSetting.Mode)),
-                    Strategy = Read<Strategies>(reader, nameof(ParseSetting.Strategy))
-                });
-            }
-
-            return parseSettings;
-		}
-
-        private static T? Read<T>(NpgsqlDataReader reader, string field)
-        {
-            var ordinal = reader.GetOrdinal(field);
-            if (reader.IsDBNull(ordinal)) return default;
-
-            if (typeof(T).IsEnum)
-            {
-                var value = reader.GetString(ordinal);
-                return (T) Enum.Parse(typeof(T), value, true);
-            }
-            return reader.GetFieldValue<T>(ordinal);
+            return await context.ParseSettings.ToListAsync();
         }
 
-        private async Task<NpgsqlConnection> OpenConnection()
-		{
-			var conn = new NpgsqlConnection(new NpgsqlConnectionStringBuilder
-            {                
-                Pooling = true,
-                SslMode = SslMode.VerifyFull,
-                Host = options.Value.Host,
-                Port = options.Value.Port,
-                Username = options.Value.Username,
-                Password = options.Value.Password,
-                Database = options.Value.Database
-            }.ConnectionString);
+        public async Task<List<StockOrder>> GetStockOrders(string parseSettingKey, DateOnly watchDate)
+        {
+            return await context.StockOrders.Where(o => o.ParseSettingKey == parseSettingKey && o.WatchDate == watchDate).ToListAsync();
+        }
 
-			await conn.OpenAsync();
+        public async Task<List<OptionOrder>> GetOptionOrders(string parseSettingKey, DateOnly watchDate)
+        {
+            return await context.OptionOrders.Where(o => o.ParseSettingKey == parseSettingKey && o.WatchDate == watchDate).ToListAsync();
+        }
 
-			return conn;
+        public async Task Save(List<StockOrder> stockOrders)
+        {
+            var newStockOrders = stockOrders.Where(so => so.Id == Guid.Empty).ToList();
+            var existingStockOrders = stockOrders.Where(so => so.Id != Guid.Empty).ToList();
+
+            if (newStockOrders.Count > 0) context.AddRange(newStockOrders);
+            if (existingStockOrders.Count > 0) context.UpdateRange(existingStockOrders);
+
+            if (newStockOrders.Count > 0 || existingStockOrders.Count > 0)
+            {
+                await context.SaveChangesAsync();
+            }
+        }
+
+        public async Task Save(List<OptionOrder> optionOrders)
+        {
+            var newOptionOrders = optionOrders.Where(so => so.Id == Guid.Empty).ToList();
+            var existingOptionOrders = optionOrders.Where(so => so.Id != Guid.Empty).ToList();
+            
+            if (newOptionOrders.Count > 0) context.AddRange(newOptionOrders);           
+            if (existingOptionOrders.Count > 0) context.UpdateRange(existingOptionOrders);
+
+            if (newOptionOrders.Count > 0 || existingOptionOrders.Count > 0)
+            {
+                await context.SaveChangesAsync();
+            }
         }
     }
 
-	public interface IDatabaseService
-	{
+    public interface IDatabaseService
+    {
         Task<List<ParseSetting>> GetParseSettings();
-	}
-}
 
+        Task<List<StockOrder>> GetStockOrders(string parseSettingKey, DateOnly watchDate);
+
+        Task<List<OptionOrder>> GetOptionOrders(string parseSettingKey, DateOnly watchDate);
+
+        Task Save(List<StockOrder> stockOrders);
+
+        Task Save(List<OptionOrder> optionOrders);
+    }
+}

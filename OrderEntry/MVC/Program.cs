@@ -1,4 +1,7 @@
-﻿using Microsoft.Extensions.FileProviders;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Options;
+using Npgsql;
 using OrderEntry;
 using OrderEntry.Brokers;
 using OrderEntry.Database;
@@ -15,7 +18,26 @@ builder.Services.Configure<InteractiveBrokersSettings>(builder.Configuration.Get
 builder.Services.AddSingleton<IInteractiveBrokersService, InteractiveBrokersService>();
 builder.Services.AddSingleton<ICharlesSchwabService, CharlesSchwabService>();
 builder.Services.AddSingleton<IMindfulTraderService, MindfulTraderService>();
-builder.Services.AddSingleton<IDatabaseService, DatabaseService>();
+builder.Services.AddScoped<IDatabaseService, DatabaseService>();
+builder.Services.AddDbContext<OrderEntryDbContext>((provider, options) =>
+{
+    var dbOptions = provider.GetService<IOptions<DatabaseSettings>>()!;
+    var dataSourceBuilder = new NpgsqlDataSourceBuilder(new NpgsqlConnectionStringBuilder
+    {
+        Pooling = true,
+        SslMode = SslMode.VerifyFull,
+        Host = dbOptions.Value.Host,
+        Port = dbOptions.Value.Port,
+        Username = dbOptions.Value.Username,
+        Password = dbOptions.Value.Password,
+        Database = dbOptions.Value.Database
+    }.ConnectionString);
+    dataSourceBuilder.MapEnum<Modes>("modes");
+    dataSourceBuilder.MapEnum<ParseTypes>("parse_types");
+    dataSourceBuilder.MapEnum<ParseTypes>("option_types");
+    dataSourceBuilder.MapEnum<Strategies>("strategies");
+    options.UseNpgsql(dataSourceBuilder.Build());
+});
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();

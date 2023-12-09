@@ -2,6 +2,7 @@
 {
     public interface IOrder
     {
+        string ParseSettingKey { get; set; }
         Guid Id { get; set; }
         DateOnly WatchDate { get; set; }
         Strategies Strategy { get; set; }
@@ -11,11 +12,9 @@
         decimal PotentialProfit { get; set; }
         decimal PotentialStop { get; set; }
         decimal PositionValue { get; set; }
-        string EarningsDate { get; set; }
-        string DividendsDate { get; set; }
-        int EntryOrderId { get; set; }
-        int ProfitOrderId { get; set; }
-        int StopOrderId { get; set; }
+        int? IBEntryOrderId { get; set; }
+        int? IBProfitOrderId { get; set; }
+        int? IBStopOrderId { get; set; }
 
         string ToString();
     }

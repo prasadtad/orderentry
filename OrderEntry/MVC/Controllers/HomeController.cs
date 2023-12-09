@@ -19,12 +19,8 @@ public class HomeController : Controller
     private readonly IDatabaseService databaseService;
 
     private const string ParseSettingsKey = "ParseSettings";
-    private const string ImportedStockAccountBalanceKey = "ImportedStockAccountBalance";
-    private const string ImportedStockStrategyKey = "ImportedStockStrategy";
-    private const string ImportedStockOrdersKey = "ImportedStockOrders";
-    private const string ImportedOptionAccountBalanceKey = "ImportedOptionAccountBalance";
-    private const string ImportedOptionStrategyKey = "ImportedOptionStrategy";
-    private const string ImportedOptionOrdersKey = "ImportedOptionOrders";
+    private const string ImportedStockParseSettingKey = "ImportedStockParseSetting";
+    private const string ImportedOptionParseSettingKey = "ImportedOptionParseSetting";
 
     public HomeController(ILogger<HomeController> logger, IMindfulTraderService mindfulTraderService, IMemoryCache memoryCache, ICharlesSchwabService charlesSchwabService, IInteractiveBrokersService interactiveBrokersService, IDatabaseService databaseService)
     {
@@ -36,11 +32,12 @@ public class HomeController : Controller
         this.databaseService = databaseService;
     }
 
-    public IActionResult Stocks()
+    public async Task<IActionResult> Stocks()
     {
-        var accountBalance = memoryCache.Get<decimal?>(ImportedStockAccountBalanceKey) ?? 0;
-        var stockOrders = memoryCache.Get<List<StockOrder>>(ImportedStockOrdersKey);
-        ViewBag.Strategy = memoryCache.Get<Strategies>(ImportedStockStrategyKey);
+        var importedStockParseSetting = memoryCache.Get<ParseSetting>(ImportedStockParseSettingKey);
+        var accountBalance = importedStockParseSetting?.AccountBalance ?? 0;
+        var stockOrders = await GetStockOrders(importedStockParseSetting);
+        ViewBag.Strategy = importedStockParseSetting?.Strategy ?? Strategies.None;
         ViewBag.AccountBalance = accountBalance;
         var model = new List<StockOrderViewModel>();
         if (stockOrders != null)
@@ -48,8 +45,6 @@ public class HomeController : Controller
             var balance = 0.0m;
             foreach (var stockOrder in stockOrders)
             {
-                if (stockOrder.Count == 0) continue;
-
                 var (entry, profit, stop) = charlesSchwabService.GetPastableFormat(stockOrder);
                 balance += stockOrder.PositionValue;
                 model.Add(new StockOrderViewModel
@@ -63,16 +58,17 @@ public class HomeController : Controller
                     BackgroundColor = balance > accountBalance ? "red" : "green",
                     Selected = balance <= accountBalance
                 });
-            }         
+            }
         }
         return View(model);
     }
 
-    public IActionResult Options()
+    public async Task<IActionResult> Options()
     {
-        var accountBalance = memoryCache.Get<decimal?>(ImportedOptionAccountBalanceKey) ?? 0;
-        var optionOrders = memoryCache.Get<List<OptionOrder>>(ImportedOptionOrdersKey);
-        ViewBag.Strategy = memoryCache.Get<Strategies>(ImportedOptionStrategyKey);
+        var importedOptionParseSetting = memoryCache.Get<ParseSetting>(ImportedOptionParseSettingKey);
+        var accountBalance = importedOptionParseSetting?.AccountBalance ?? 0;
+        var optionOrders = await GetOptionOrders(importedOptionParseSetting);
+        ViewBag.Strategy = importedOptionParseSetting?.Strategy ?? Strategies.None;
         ViewBag.AccountBalance = accountBalance;
         var model = new List<OptionOrderViewModel>();
         if (optionOrders != null)
@@ -80,8 +76,6 @@ public class HomeController : Controller
             var balance = 0.0m;
             foreach (var optionOrder in optionOrders)
             {
-                if (optionOrder.Count == 0) continue;
-
                 var (entry, profit) = charlesSchwabService.GetPastableFormat(optionOrder);
                 balance += optionOrder.PositionValue;
                 model.Add(new OptionOrderViewModel
@@ -104,7 +98,7 @@ public class HomeController : Controller
         return View(new ImportViewModel
         {
             ParseSettings = (await GetParseSettings())
-                    .Select(t => new SelectListItem {  Text = t.Key, Value = t.Key })
+                    .Select(t => new SelectListItem { Text = t.Key, Value = t.Key })
                     .ToList()
         });
     }
@@ -123,27 +117,27 @@ public class HomeController : Controller
     [HttpPost]
     public async Task SubmitStockOrders(List<StockOrderViewModel> model)
     {
-        var stockOrders = memoryCache.Get<List<StockOrder>>(ImportedStockOrdersKey)?
+        var importedStockParseSetting = memoryCache.Get<ParseSetting>(ImportedStockParseSettingKey);
+        var stockOrders = (await GetStockOrders(importedStockParseSetting))
                                       .Where(o => model.Exists(m => m.Id == o.Id && m.Selected));
         if (stockOrders == null) return;
 
         var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(stockOrders))
-                                        .Cast<StockOrder>();        
+                                        .Cast<StockOrder>();
         foreach (var order in ordersWithoutPositions)
         {
             await interactiveBrokersService.Submit(order);
         }
 
-        memoryCache.Remove(ImportedStockAccountBalanceKey);
-        memoryCache.Remove(ImportedStockStrategyKey);
-        memoryCache.Remove(ImportedStockOrdersKey);
+        memoryCache.Remove(ImportedStockParseSettingKey);
         Response.Redirect("Index");
     }
 
     [HttpPost]
     public async Task SubmitOptionOrders(List<OptionOrderViewModel> model)
     {
-        var optionOrders = memoryCache.Get<List<OptionOrder>>(ImportedOptionOrdersKey)?
+        var importedOptionParseSetting = memoryCache.Get<ParseSetting>(ImportedOptionParseSettingKey);
+        var optionOrders = (await GetOptionOrders(importedOptionParseSetting))
                                       .Where(o => model.Exists(m => m.Id == o.Id && m.Selected));
         if (optionOrders == null) return;
 
@@ -156,15 +150,13 @@ public class HomeController : Controller
             if (price != null)
                 ordersWithPrices.Add((order, price.Value.price, price.Value.tradingClass));
         }
-        
+
         foreach (var orderWithPrice in ordersWithPrices)
         {
             await interactiveBrokersService.Submit(orderWithPrice.order, orderWithPrice.tradingClass);
         }
 
-        memoryCache.Remove(ImportedOptionAccountBalanceKey);
-        memoryCache.Remove(ImportedOptionStrategyKey);
-        memoryCache.Remove(ImportedOptionOrdersKey);
+        memoryCache.Remove(ImportedOptionParseSettingKey);
         Response.Redirect("Index");
     }
 
@@ -176,24 +168,30 @@ public class HomeController : Controller
         var parseSetting = (await GetParseSettings()).Single(t => t.Key == model.ParseSettingKey);
         if (parseSetting.Mode == Modes.Stock)
         {
-            memoryCache.Set(ImportedStockAccountBalanceKey, parseSetting.AccountBalance);
-            memoryCache.Set(ImportedStockStrategyKey, parseSetting.Strategy);
-            var orders = (string.IsNullOrWhiteSpace(model.Text) ?
-                await mindfulTraderService.GetWatchlist(parseSetting, "Content/Images/screenshot.png") :
-                mindfulTraderService.ParseWatchlist(model.Text, parseSetting))
-                .Cast<StockOrder>().OrderBy(s => s.DistanceInATRs).ToList();
-            memoryCache.Set(ImportedStockOrdersKey, orders);            
+            memoryCache.Set(ImportedStockParseSettingKey, parseSetting);
+            var orders = await GetStockOrders(parseSetting);
+            if (orders.Count == 0)
+            {
+                orders = (string.IsNullOrWhiteSpace(model.Text) ?
+                    await mindfulTraderService.GetWatchlist(parseSetting, "Content/Images/screenshot.png") :
+                    mindfulTraderService.ParseWatchlist(model.Text, parseSetting))
+                    .Where(s => s.Count > 0 && s.WatchDate == mindfulTraderService.CurrentWatchDate).Cast<StockOrder>().OrderBy(s => s.DistanceInATRs).ToList();
+                await SaveStockOrders(parseSetting, orders);
+            }
             Response.Redirect("Stocks");
         }
         else if (parseSetting.Mode == Modes.Option)
         {
-            memoryCache.Set(ImportedOptionAccountBalanceKey, parseSetting.AccountBalance);
-            memoryCache.Set(ImportedOptionStrategyKey, parseSetting.Strategy);
-            var orders = (string.IsNullOrWhiteSpace(model.Text) ?
-                await mindfulTraderService.GetWatchlist(parseSetting, "Content/Images/screenshot.png") :
-                mindfulTraderService.ParseWatchlist(model.Text, parseSetting))
-                .Cast<OptionOrder>().ToList();
-            memoryCache.Set(ImportedOptionOrdersKey, orders);
+            memoryCache.Set(ImportedOptionParseSettingKey, parseSetting);
+            var orders = await GetOptionOrders(parseSetting);
+            if (orders.Count == 0)
+            {
+                orders = (string.IsNullOrWhiteSpace(model.Text) ?
+                    await mindfulTraderService.GetWatchlist(parseSetting, "Content/Images/screenshot.png") :
+                    mindfulTraderService.ParseWatchlist(model.Text, parseSetting))
+                    .Where(s => s.Count > 0 && s.WatchDate == mindfulTraderService.CurrentWatchDate).Cast<OptionOrder>().ToList();
+                await SaveOptionOrders(parseSetting, orders);
+            }
             Response.Redirect("Options");
         }
         else
@@ -208,6 +206,46 @@ public class HomeController : Controller
         parseSettings = await databaseService.GetParseSettings();
         memoryCache.Set(ParseSettingsKey, parseSettings);
         return parseSettings;
+    }
+
+    private async Task<List<StockOrder>> GetStockOrders(ParseSetting? setting)
+    {
+        if (setting == null) return [];
+
+        var key = $"StockOrders:{setting.Key}";
+        var orders = memoryCache.Get<List<StockOrder>>(key);
+        if (orders != null) return orders;
+
+        orders = await databaseService.GetStockOrders(setting.Key, mindfulTraderService.CurrentWatchDate);
+        if (orders.Count > 0) memoryCache.Set(key, orders);
+
+        return orders;
+    }
+
+    private async Task SaveStockOrders(ParseSetting setting, List<StockOrder> stockOrders)
+    {
+        await databaseService.Save(stockOrders);
+        memoryCache.Remove($"StockOrders:{setting.Key}");
+    }
+
+    private async Task<List<OptionOrder>> GetOptionOrders(ParseSetting? setting)
+    {
+        if (setting == null) return [];
+
+        var key = $"OptionOrders:{setting.Key}";
+        var orders = memoryCache.Get<List<OptionOrder>>(key);
+        if (orders != null) return orders;
+
+        orders = await databaseService.GetOptionOrders(setting.Key, mindfulTraderService.CurrentWatchDate);
+        if (orders.Count > 0) memoryCache.Set(key, orders);
+
+        return orders;
+    }
+
+    private async Task SaveOptionOrders(ParseSetting setting, List<OptionOrder> optionOrders)
+    {
+        await databaseService.Save(optionOrders);
+        memoryCache.Remove($"OptionOrders:{setting.Key}");
     }
 }
 
