@@ -6,13 +6,13 @@ using MVC.Models;
 using OrderEntry.Brokers;
 using OrderEntry.Database;
 using OrderEntry.MindfulTrader;
+using OrderEntry.Utils;
 
 namespace MVC.Controllers;
 
 public class HomeController : Controller
 {
     private readonly ILogger<HomeController> logger;
-    private readonly IMindfulTraderService mindfulTraderService;
     private readonly IMemoryCache memoryCache;
     private readonly ICharlesSchwabService charlesSchwabService;
     private readonly IInteractiveBrokersService interactiveBrokersService;
@@ -22,10 +22,9 @@ public class HomeController : Controller
     private const string ImportedStockParseSettingKey = "ImportedStockParseSetting";
     private const string ImportedOptionParseSettingKey = "ImportedOptionParseSetting";
 
-    public HomeController(ILogger<HomeController> logger, IMindfulTraderService mindfulTraderService, IMemoryCache memoryCache, ICharlesSchwabService charlesSchwabService, IInteractiveBrokersService interactiveBrokersService, IDatabaseService databaseService)
+    public HomeController(ILogger<HomeController> logger, IMemoryCache memoryCache, ICharlesSchwabService charlesSchwabService, IInteractiveBrokersService interactiveBrokersService, IDatabaseService databaseService)
     {
         this.logger = logger;
-        this.mindfulTraderService = mindfulTraderService;
         this.memoryCache = memoryCache;
         this.charlesSchwabService = charlesSchwabService;
         this.interactiveBrokersService = interactiveBrokersService;
@@ -169,29 +168,11 @@ public class HomeController : Controller
         if (parseSetting.Mode == Modes.Stock)
         {
             memoryCache.Set(ImportedStockParseSettingKey, parseSetting);
-            var orders = await GetStockOrders(parseSetting);
-            if (orders.Count == 0)
-            {
-                orders = (string.IsNullOrWhiteSpace(model.Text) ?
-                    await mindfulTraderService.GetWatchlist(parseSetting, "Content/Images/screenshot.png") :
-                    mindfulTraderService.ParseWatchlist(model.Text, parseSetting))
-                    .Where(s => s.Count > 0 && s.WatchDate == mindfulTraderService.CurrentWatchDate).Cast<StockOrder>().OrderBy(s => s.DistanceInATRs).ToList();
-                await SaveStockOrders(parseSetting, orders);
-            }
             Response.Redirect("Stocks");
         }
         else if (parseSetting.Mode == Modes.Option)
         {
             memoryCache.Set(ImportedOptionParseSettingKey, parseSetting);
-            var orders = await GetOptionOrders(parseSetting);
-            if (orders.Count == 0)
-            {
-                orders = (string.IsNullOrWhiteSpace(model.Text) ?
-                    await mindfulTraderService.GetWatchlist(parseSetting, "Content/Images/screenshot.png") :
-                    mindfulTraderService.ParseWatchlist(model.Text, parseSetting))
-                    .Where(s => s.Count > 0 && s.WatchDate == mindfulTraderService.CurrentWatchDate).Cast<OptionOrder>().ToList();
-                await SaveOptionOrders(parseSetting, orders);
-            }
             Response.Redirect("Options");
         }
         else
@@ -216,16 +197,10 @@ public class HomeController : Controller
         var orders = memoryCache.Get<List<StockOrder>>(key);
         if (orders != null) return orders;
 
-        orders = await databaseService.GetStockOrders(setting.Key, mindfulTraderService.CurrentWatchDate);
+        orders = (await databaseService.GetStockOrders(setting.Key, DateUtils.TodayEST)).OrderBy(o => o.DistanceInATRs).ToList();
         if (orders.Count > 0) memoryCache.Set(key, orders);
 
         return orders;
-    }
-
-    private async Task SaveStockOrders(ParseSetting setting, List<StockOrder> stockOrders)
-    {
-        await databaseService.Save(stockOrders);
-        memoryCache.Remove($"StockOrders:{setting.Key}");
     }
 
     private async Task<List<OptionOrder>> GetOptionOrders(ParseSetting? setting)
@@ -236,16 +211,10 @@ public class HomeController : Controller
         var orders = memoryCache.Get<List<OptionOrder>>(key);
         if (orders != null) return orders;
 
-        orders = await databaseService.GetOptionOrders(setting.Key, mindfulTraderService.CurrentWatchDate);
+        orders = await databaseService.GetOptionOrders(setting.Key, DateUtils.TodayEST);
         if (orders.Count > 0) memoryCache.Set(key, orders);
 
         return orders;
-    }
-
-    private async Task SaveOptionOrders(ParseSetting setting, List<OptionOrder> optionOrders)
-    {
-        await databaseService.Save(optionOrders);
-        memoryCache.Remove($"OptionOrders:{setting.Key}");
     }
 }
 

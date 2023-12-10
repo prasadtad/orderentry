@@ -11,13 +11,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddHttpClient();
-builder.Services.Configure<MindfulTraderSettings>(builder.Configuration.GetSection("MindfulTrader"));
 builder.Services.Configure<DatabaseSettings>(builder.Configuration.GetSection("Database"));
 builder.Services.Configure<CharlesSchwabSettings>(builder.Configuration.GetSection("CharlesSchwab"));
 builder.Services.Configure<InteractiveBrokersSettings>(builder.Configuration.GetSection("InteractiveBrokers"));
 builder.Services.AddSingleton<IInteractiveBrokersService, InteractiveBrokersService>();
 builder.Services.AddSingleton<ICharlesSchwabService, CharlesSchwabService>();
-builder.Services.AddSingleton<IMindfulTraderService, MindfulTraderService>();
 builder.Services.AddScoped<IDatabaseService, DatabaseService>();
 builder.Services.AddDbContext<OrderEntryDbContext>((provider, options) =>
 {
@@ -34,7 +32,7 @@ builder.Services.AddDbContext<OrderEntryDbContext>((provider, options) =>
     }.ConnectionString);
     dataSourceBuilder.MapEnum<Modes>("modes");
     dataSourceBuilder.MapEnum<ParseTypes>("parse_types");
-    dataSourceBuilder.MapEnum<ParseTypes>("option_types");
+    dataSourceBuilder.MapEnum<OptionTypes>("option_types");
     dataSourceBuilder.MapEnum<Strategies>("strategies");
     options.UseNpgsql(dataSourceBuilder.Build());
 });

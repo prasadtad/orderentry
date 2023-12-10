@@ -12,9 +12,19 @@ namespace OrderEntry.Database
             return await context.ParseSettings.ToListAsync();
         }
 
+        public async Task<bool> HasStockOrders(string parseSettingKey, DateOnly watchDate)
+        {
+            return await context.StockOrders.AnyAsync(o => o.ParseSettingKey == parseSettingKey && o.WatchDate == watchDate);
+        }
+
         public async Task<List<StockOrder>> GetStockOrders(string parseSettingKey, DateOnly watchDate)
         {
             return await context.StockOrders.Where(o => o.ParseSettingKey == parseSettingKey && o.WatchDate == watchDate).ToListAsync();
+        }
+
+        public async Task<bool> HasOptionOrders(string parseSettingKey, DateOnly watchDate)
+        {
+            return await context.OptionOrders.AnyAsync(o => o.ParseSettingKey == parseSettingKey && o.WatchDate == watchDate);
         }
 
         public async Task<List<OptionOrder>> GetOptionOrders(string parseSettingKey, DateOnly watchDate)
@@ -40,8 +50,8 @@ namespace OrderEntry.Database
         {
             var newOptionOrders = optionOrders.Where(so => so.Id == Guid.Empty).ToList();
             var existingOptionOrders = optionOrders.Where(so => so.Id != Guid.Empty).ToList();
-            
-            if (newOptionOrders.Count > 0) context.AddRange(newOptionOrders);           
+
+            if (newOptionOrders.Count > 0) context.AddRange(newOptionOrders);
             if (existingOptionOrders.Count > 0) context.UpdateRange(existingOptionOrders);
 
             if (newOptionOrders.Count > 0 || existingOptionOrders.Count > 0)
@@ -55,7 +65,11 @@ namespace OrderEntry.Database
     {
         Task<List<ParseSetting>> GetParseSettings();
 
+        Task<bool> HasStockOrders(string parseSettingKey, DateOnly watchDate);
+
         Task<List<StockOrder>> GetStockOrders(string parseSettingKey, DateOnly watchDate);
+
+        Task<bool> HasOptionOrders(string parseSettingKey, DateOnly watchDate);
 
         Task<List<OptionOrder>> GetOptionOrders(string parseSettingKey, DateOnly watchDate);
 
