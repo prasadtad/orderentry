@@ -9,7 +9,7 @@ namespace OrderEntry.Database
 
         public async Task<List<ParseSetting>> GetParseSettings()
         {
-            return await context.ParseSettings.ToListAsync();
+            return await context.ParseSettings.Where(o => o.Active).ToListAsync();
         }
 
         public async Task<bool> HasStockOrders(string parseSettingKey, DateOnly watchDate)

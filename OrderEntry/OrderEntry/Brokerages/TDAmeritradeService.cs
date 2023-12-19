@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using OrderEntry.MindfulTrader;
 
-namespace OrderEntry.Brokers
+namespace OrderEntry.Brokerages
 {
     public class CharlesSchwabService : ICharlesSchwabService
     {

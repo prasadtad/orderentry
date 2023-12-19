@@ -14,6 +14,7 @@ namespace OrderEntry.Database
         protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.HasPostgresEnum<Modes>()
                                                                                           .HasPostgresEnum<Strategies>()
                                                                                           .HasPostgresEnum<ParseTypes>()
-                                                                                          .HasPostgresEnum<OptionTypes>();
+                                                                                          .HasPostgresEnum<OptionTypes>()
+                                                                                          .HasPostgresEnum<Brokers>();
     }
 }

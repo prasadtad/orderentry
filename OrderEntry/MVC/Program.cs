@@ -3,7 +3,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using OrderEntry;
-using OrderEntry.Brokers;
+using OrderEntry.Brokerages;
 using OrderEntry.Database;
 using OrderEntry.MindfulTrader;
 
@@ -34,6 +34,7 @@ builder.Services.AddDbContext<OrderEntryDbContext>((provider, options) =>
     dataSourceBuilder.MapEnum<ParseTypes>("parse_types");
     dataSourceBuilder.MapEnum<OptionTypes>("option_types");
     dataSourceBuilder.MapEnum<Strategies>("strategies");
+    dataSourceBuilder.MapEnum<Brokers>("brokers");
     options.UseNpgsql(dataSourceBuilder.Build());
 });
 builder.Services.AddControllersWithViews();

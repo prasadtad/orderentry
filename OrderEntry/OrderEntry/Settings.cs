@@ -29,8 +29,6 @@
 
     public class InteractiveBrokersSettings
     {
-        public required string AccountId { get; set; }
-
         public required int Port { get; set; }
     }
 }

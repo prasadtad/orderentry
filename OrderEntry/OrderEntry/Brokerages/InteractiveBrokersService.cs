@@ -5,7 +5,7 @@ using IBApi;
 using Microsoft.Extensions.Options;
 using OrderEntry.MindfulTrader;
 
-namespace OrderEntry.Brokers
+namespace OrderEntry.Brokerages
 {
     public class InteractiveBrokersService : IInteractiveBrokersService
     {
@@ -18,20 +18,20 @@ namespace OrderEntry.Brokers
             this.twsObjectFactory = new TwsObjectFactory("localhost", options.Value.Port, 1);
         }
 
-        public async Task Display()
+        public async Task Display(string accountId)
         {
             Console.WriteLine($"IB: Connecting...");
 
             var twsController = twsObjectFactory.TwsControllerBase;
             await twsController.EnsureConnectedAsync();
 
-            Console.WriteLine($"IB: Getting {options.Value.AccountId} account details...");
-            var account = await twsController.GetAccountDetailsAsync(options.Value.AccountId);
+            Console.WriteLine($"IB: Getting {accountId} account details...");
+            var account = await twsController.GetAccountDetailsAsync(accountId);
             foreach (var key in account.Keys.OrderBy(k => k))
                 Console.WriteLine($"{key}={account[key]}");
         }
 
-        public async Task<decimal?> GetCurrentPrice(string ticker)
+        public async Task<decimal?> GetCurrentPrice(string accountId, string ticker)
         {
             var twsController = twsObjectFactory.TwsControllerBase;
             await twsController.EnsureConnectedAsync();
@@ -80,7 +80,7 @@ namespace OrderEntry.Brokers
             return askPrice;
         }
 
-        public async Task<(decimal price, string tradingClass)?> GetCurrentPrice(string ticker, decimal strikePrice, DateOnly strikeDate, OptionTypes type)
+        public async Task<(decimal price, string tradingClass)?> GetCurrentPrice(string accountId, string ticker, decimal strikePrice, DateOnly strikeDate, OptionTypes type)
         {
             var twsController = twsObjectFactory.TwsControllerBase;
             await twsController.EnsureConnectedAsync();
@@ -116,7 +116,7 @@ namespace OrderEntry.Brokers
             return (askPrice, "");
         }
 
-        public async Task<List<IOrder>> GetOrdersWithoutPositions(IEnumerable<IOrder> orders)
+        public async Task<List<IOrder>> GetOrdersWithoutPositions(string accountId, IEnumerable<IOrder> orders)
         {
             var twsController = twsObjectFactory.TwsControllerBase;
 
@@ -126,7 +126,7 @@ namespace OrderEntry.Brokers
             var ordersWithoutPositions = new List<IOrder>();
             foreach (var order in orders)
             {
-                if (positions.Any(p => p.Account == options.Value.AccountId && p.Contract.Symbol == order.Ticker))
+                if (positions.Any(p => p.Account == accountId && p.Contract.Symbol == order.Ticker))
                     continue;
 
                 ordersWithoutPositions.Add(order);
@@ -134,11 +134,11 @@ namespace OrderEntry.Brokers
             return ordersWithoutPositions;
         }
 
-        public async Task<bool> Submit(StockOrder stockOrder)
+        public async Task<bool> Submit(string accountId, StockOrder stockOrder)
         {
             var twsController = twsObjectFactory.TwsControllerBase;
 
-            Console.WriteLine($"IB: Submitting stock order to {options.Value.AccountId}");
+            Console.WriteLine($"IB: Submitting stock order to {accountId}");
             await twsController.EnsureConnectedAsync();
 
             var contract = new Contract
@@ -161,7 +161,7 @@ namespace OrderEntry.Brokers
 
             Order entryOrder = new Order()
             {
-                Account = options.Value.AccountId,
+                Account = accountId,
                 Action = TwsOrderActions.Buy,
                 OrderType = TwsOrderType.Limit,
                 TotalQuantity = stockOrder.Count,
@@ -172,7 +172,7 @@ namespace OrderEntry.Brokers
 
             Order takeProfit = new Order()
             {
-                Account = options.Value.AccountId,
+                Account = accountId,
                 Action = TwsOrderActions.Sell,
                 OrderType = TwsOrderType.Limit,
                 TotalQuantity = stockOrder.Count,
@@ -184,7 +184,7 @@ namespace OrderEntry.Brokers
 
             Order stopLoss = new Order()
             {
-                Account = options.Value.AccountId,
+                Account = accountId,
                 Action = TwsOrderActions.Sell,
                 OrderType = TwsOrderType.StopLoss,
                 TotalQuantity = stockOrder.Count,
@@ -200,11 +200,11 @@ namespace OrderEntry.Brokers
             return (await Task.WhenAll(entryOrderAckTask, takeProfitOrderAckTask, stopOrderAckTask)).All(result => result);
         }
 
-        public async Task<bool> Submit(OptionOrder optionOrder, string tradingClass)
+        public async Task<bool> Submit(string accountId, OptionOrder optionOrder, string tradingClass)
         {
             var twsController = twsObjectFactory.TwsControllerBase;
 
-            Console.WriteLine($"IB: Submitting option order to {options.Value.AccountId}");
+            Console.WriteLine($"IB: Submitting option order to {accountId}");
             await twsController.EnsureConnectedAsync();
 
             var contract = new Contract
@@ -231,7 +231,7 @@ namespace OrderEntry.Brokers
 
             Order entryOrder = new Order()
             {
-                Account = options.Value.AccountId,
+                Account = accountId,
                 Action = TwsOrderActions.Buy,
                 OrderType = TwsOrderType.Limit,
                 TotalQuantity = optionOrder.Count,
@@ -242,7 +242,7 @@ namespace OrderEntry.Brokers
 
             Order takeProfit = new Order()
             {
-                Account = options.Value.AccountId,
+                Account = accountId,
                 Action = TwsOrderActions.Sell,
                 OrderType = TwsOrderType.Limit,
                 TotalQuantity = optionOrder.Count,
@@ -260,16 +260,16 @@ namespace OrderEntry.Brokers
 
     public interface IInteractiveBrokersService
     {
-        Task Display();
+        Task Display(string accountId);
 
-        Task<decimal?> GetCurrentPrice(string ticker);
+        Task<decimal?> GetCurrentPrice(string accountId, string ticker);
 
-        Task<(decimal price, string tradingClass)?> GetCurrentPrice(string ticker, decimal strikePrice, DateOnly strikeDate, OptionTypes type);
+        Task<(decimal price, string tradingClass)?> GetCurrentPrice(string accountId, string ticker, decimal strikePrice, DateOnly strikeDate, OptionTypes type);
 
-        Task<List<IOrder>> GetOrdersWithoutPositions(IEnumerable<IOrder> orders);
+        Task<List<IOrder>> GetOrdersWithoutPositions(string accountId, IEnumerable<IOrder> orders);
 
-        Task<bool> Submit(StockOrder order);
+        Task<bool> Submit(string accountId, StockOrder order);
 
-        Task<bool> Submit(OptionOrder optionOrder, string tradingClass);
+        Task<bool> Submit(string accountId, OptionOrder optionOrder, string tradingClass);
     }    
 }

@@ -3,33 +3,24 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Caching.Memory;
 using MVC.Models;
-using OrderEntry.Brokers;
+using OrderEntry.Brokerages;
 using OrderEntry.Database;
 using OrderEntry.MindfulTrader;
 using OrderEntry.Utils;
 
 namespace MVC.Controllers;
 
-public class HomeController : Controller
+public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryCache, ICharlesSchwabService charlesSchwabService, IInteractiveBrokersService interactiveBrokersService, IDatabaseService databaseService) : Controller
 {
-    private readonly ILogger<HomeController> logger;
-    private readonly IMemoryCache memoryCache;
-    private readonly ICharlesSchwabService charlesSchwabService;
-    private readonly IInteractiveBrokersService interactiveBrokersService;
-    private readonly IDatabaseService databaseService;
+    private readonly ILogger<HomeController> logger = logger;
+    private readonly IMemoryCache memoryCache = memoryCache;
+    private readonly ICharlesSchwabService charlesSchwabService = charlesSchwabService;
+    private readonly IInteractiveBrokersService interactiveBrokersService = interactiveBrokersService;
+    private readonly IDatabaseService databaseService = databaseService;
 
     private const string ParseSettingsKey = "ParseSettings";
     private const string ImportedStockParseSettingKey = "ImportedStockParseSetting";
     private const string ImportedOptionParseSettingKey = "ImportedOptionParseSetting";
-
-    public HomeController(ILogger<HomeController> logger, IMemoryCache memoryCache, ICharlesSchwabService charlesSchwabService, IInteractiveBrokersService interactiveBrokersService, IDatabaseService databaseService)
-    {
-        this.logger = logger;
-        this.memoryCache = memoryCache;
-        this.charlesSchwabService = charlesSchwabService;
-        this.interactiveBrokersService = interactiveBrokersService;
-        this.databaseService = databaseService;
-    }
 
     public async Task<IActionResult> Stocks()
     {
@@ -121,13 +112,17 @@ public class HomeController : Controller
                                       .Where(o => model.Exists(m => m.Id == o.Id && m.Selected));
         if (stockOrders == null) return;
 
-        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(stockOrders))
+        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(importedStockParseSetting!.AccountId!,stockOrders))
                                         .Cast<StockOrder>();
+        var submittedOrders = new List<StockOrder>();
         foreach (var order in ordersWithoutPositions)
         {
-            await interactiveBrokersService.Submit(order);
+            if (await interactiveBrokersService.Submit(importedStockParseSetting!.AccountId!,order))
+            {
+                submittedOrders.Add(order);
+            }
         }
-
+        await databaseService.Save(submittedOrders);
         memoryCache.Remove(ImportedStockParseSettingKey);
         Response.Redirect("Index");
     }
@@ -140,21 +135,24 @@ public class HomeController : Controller
                                       .Where(o => model.Exists(m => m.Id == o.Id && m.Selected));
         if (optionOrders == null) return;
 
-        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(optionOrders))
+        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(importedOptionParseSetting!.AccountId!,optionOrders))
                                         .Cast<OptionOrder>();
         var ordersWithPrices = new List<(OptionOrder order, decimal price, string tradingClass)>();
         foreach (var order in ordersWithoutPositions)
         {
-            var price = await interactiveBrokersService.GetCurrentPrice(order.Ticker, order.StrikePrice, order.StrikeDate, order.Type);
+            var price = await interactiveBrokersService.GetCurrentPrice(importedOptionParseSetting!.AccountId!,order.Ticker, order.StrikePrice, order.StrikeDate, order.Type);
             if (price != null)
                 ordersWithPrices.Add((order, price.Value.price, price.Value.tradingClass));
         }
-
+        var submittedOrders = new List<OptionOrder>();
         foreach (var orderWithPrice in ordersWithPrices)
         {
-            await interactiveBrokersService.Submit(orderWithPrice.order, orderWithPrice.tradingClass);
+            if (await interactiveBrokersService.Submit(importedOptionParseSetting!.AccountId!,orderWithPrice.order, orderWithPrice.tradingClass))
+            {
+                submittedOrders.Add(orderWithPrice.order);
+            }
         }
-
+        await databaseService.Save(submittedOrders);
         memoryCache.Remove(ImportedOptionParseSettingKey);
         Response.Redirect("Index");
     }

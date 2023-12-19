@@ -18,6 +18,12 @@ namespace OrderEntry.Database
 
         [Column("mode")] public required Modes Mode { get; set; }
 
+        [Column("broker")] public required Brokers Broker { get; set; }
+
+        [Column("account_id")] public string? AccountId { get; set;}
+
+        [Column("active")] public required bool Active { get; set;}
+
         public override string ToString()
         {
             return $"{Key} - {ParseType} {AccountBalance} {Mode} {Strategy}";

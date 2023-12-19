@@ -30,4 +30,10 @@ namespace OrderEntry.MindfulTrader
 		[PgName("double_down")] DoubleDown,
 		[PgName("triggered_list")] TriggeredList
 	}
+
+	public enum Brokers
+	{
+		[PgName("interactive_brokers")] InteractiveBrokers,
+		[PgName("charles_schwab")] CharlesSchwab
+	}
 }

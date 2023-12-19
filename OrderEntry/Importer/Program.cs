@@ -62,6 +62,7 @@ namespace Importer
                         dataSourceBuilder.MapEnum<ParseTypes>("parse_types");
                         dataSourceBuilder.MapEnum<OptionTypes>("option_types");
                         dataSourceBuilder.MapEnum<Strategies>("strategies");
+                        dataSourceBuilder.MapEnum<Brokers>("brokers");
                         options.UseNpgsql(dataSourceBuilder.Build());
                     });
                     services.AddSingleton<App>();
