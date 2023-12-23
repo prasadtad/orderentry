@@ -7,6 +7,11 @@ namespace OrderEntry.MindfulTrader
     {
         private readonly IOptions<MindfulTraderSettings> options = options;
 
+        public Task<MindfulTraderSession> GetSession()
+        {
+            return MindfulTraderSession.Create(options);
+        }
+
         public async Task<List<T>> GetOrders<T>(ParseSetting parseSetting) where T : IOrder
         {
             using var session = await MindfulTraderSession.Create(options);
@@ -53,6 +58,8 @@ namespace OrderEntry.MindfulTrader
 
     public interface IMindfulTraderService
     {
+        Task<MindfulTraderSession> GetSession();
+        
         Task<List<IOrder>> GetOrders(IEnumerable<ParseSetting> parseSettings);
 
         Task<List<T>> GetOrders<T>(ParseSetting parseSetting) where T : IOrder;

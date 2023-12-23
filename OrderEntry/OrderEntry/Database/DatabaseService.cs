@@ -32,6 +32,16 @@ namespace OrderEntry.Database
             return await context.OptionOrders.Where(o => o.ParseSettingKey == parseSettingKey && o.WatchDate == watchDate).ToListAsync();
         }
 
+        public async Task<int> DeleteStockOrders(DateOnly earliestDate)
+        {
+            return await context.StockOrders.Where(o => o.WatchDate < earliestDate).ExecuteDeleteAsync();
+        }
+
+        public async Task<int> DeleteOptionOrders(DateOnly earliestDate)
+        {
+            return await context.OptionOrders.Where(o => o.WatchDate < earliestDate).ExecuteDeleteAsync();            
+        }
+
         public async Task Save(List<StockOrder> stockOrders)
         {
             var newStockOrders = stockOrders.Where(so => so.Id == Guid.Empty).ToList();
@@ -72,6 +82,10 @@ namespace OrderEntry.Database
         Task<bool> HasOptionOrders(string parseSettingKey, DateOnly watchDate);
 
         Task<List<OptionOrder>> GetOptionOrders(string parseSettingKey, DateOnly watchDate);
+
+        Task<int> DeleteStockOrders(DateOnly earliestDate);
+
+        Task<int> DeleteOptionOrders(DateOnly earliestDate);
 
         Task Save(List<StockOrder> stockOrders);
 
