@@ -112,12 +112,12 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
                                       .Where(o => model.Exists(m => m.Id == o.Id && m.Selected));
         if (stockOrders == null) return;
 
-        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(importedStockParseSetting!.AccountId!,stockOrders))
+        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(importedStockParseSetting!.Account!,stockOrders))
                                         .Cast<StockOrder>();
         var submittedOrders = new List<StockOrder>();
         foreach (var order in ordersWithoutPositions)
         {
-            if (await interactiveBrokersService.Submit(importedStockParseSetting!.AccountId!,order))
+            if (await interactiveBrokersService.Submit(importedStockParseSetting!.Account!,order))
             {
                 submittedOrders.Add(order);
             }
@@ -135,19 +135,19 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
                                       .Where(o => model.Exists(m => m.Id == o.Id && m.Selected));
         if (optionOrders == null) return;
 
-        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(importedOptionParseSetting!.AccountId!,optionOrders))
+        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(importedOptionParseSetting!.Account!,optionOrders))
                                         .Cast<OptionOrder>();
         var ordersWithPrices = new List<(OptionOrder order, decimal price, string tradingClass)>();
         foreach (var order in ordersWithoutPositions)
         {
-            var price = await interactiveBrokersService.GetCurrentPrice(importedOptionParseSetting!.AccountId!,order.Ticker, order.StrikePrice, order.StrikeDate, order.Type);
+            var price = await interactiveBrokersService.GetCurrentPrice(importedOptionParseSetting!.Account!,order.Ticker, order.StrikePrice, order.StrikeDate, order.Type);
             if (price != null)
                 ordersWithPrices.Add((order, price.Value.price, price.Value.tradingClass));
         }
         var submittedOrders = new List<OptionOrder>();
         foreach (var orderWithPrice in ordersWithPrices)
         {
-            if (await interactiveBrokersService.Submit(importedOptionParseSetting!.AccountId!,orderWithPrice.order, orderWithPrice.tradingClass))
+            if (await interactiveBrokersService.Submit(importedOptionParseSetting!.Account!,orderWithPrice.order, orderWithPrice.tradingClass))
             {
                 submittedOrders.Add(orderWithPrice.order);
             }

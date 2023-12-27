@@ -5,9 +5,8 @@ namespace OrderEntry.MindfulTrader
 {
     [Table("option_order")]
     public class OptionOrder : IOrder
-    {
-        [Key]
-        [Column("id")] public required Guid Id { get; set; }
+    {        
+        [Key, Column("id")] public required Guid Id { get; set; }
         [Column("parse_setting_key")] public required string ParseSettingKey { get; set; }
         [Column("watch_date")] public required DateOnly WatchDate { get; set; }
         [Column("strategy")] public required Strategies Strategy { get; set; }

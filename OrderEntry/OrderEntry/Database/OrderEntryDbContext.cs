@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OrderEntry.Brokerages;
 using OrderEntry.MindfulTrader;
 
 namespace OrderEntry.Database
@@ -10,6 +11,8 @@ namespace OrderEntry.Database
         public DbSet<StockOrder> StockOrders { get; set; }
 
         public DbSet<OptionOrder> OptionOrders { get; set; }
+
+        public DbSet<InteractiveBrokersStock> InteractiveBrokersStocks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.HasPostgresEnum<Modes>()
                                                                                           .HasPostgresEnum<Strategies>()

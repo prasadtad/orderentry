@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using OrderEntry.Brokerages;
 using OrderEntry.MindfulTrader;
 
 namespace OrderEntry.Database
@@ -39,7 +40,7 @@ namespace OrderEntry.Database
 
         public async Task<int> DeleteOptionOrders(DateOnly earliestDate)
         {
-            return await context.OptionOrders.Where(o => o.WatchDate < earliestDate).ExecuteDeleteAsync();            
+            return await context.OptionOrders.Where(o => o.WatchDate < earliestDate).ExecuteDeleteAsync();
         }
 
         public async Task Save(List<StockOrder> stockOrders)
@@ -69,6 +70,38 @@ namespace OrderEntry.Database
                 await context.SaveChangesAsync();
             }
         }
+
+        public async Task<List<InteractiveBrokersStock>> GetInteractiveBrokersStocks()
+        {
+            return await context.InteractiveBrokersStocks.AsNoTracking().ToListAsync();
+        }
+
+        public async Task<int> Delete(List<InteractiveBrokersStock> stockPositions, InteractiveBrokersStockComparer comparer)
+        {
+            if (stockPositions.Count == 0) return 0;
+
+            return await context.InteractiveBrokersStocks.Where(s => stockPositions.Any(p => p.AccountId == s.AccountId && p.Ticker == s.Ticker)).ExecuteDeleteAsync();
+        }
+
+        public async Task Insert(List<InteractiveBrokersStock> stockPositions)
+        {
+            if (stockPositions.Count > 0) context.AddRange(stockPositions);
+
+            if (stockPositions.Count > 0)
+            {
+                await context.SaveChangesAsync();
+            }
+        }
+
+        public async Task Update(List<InteractiveBrokersStock> stockPositions)
+        {
+            if (stockPositions.Count > 0) context.UpdateRange(stockPositions);
+
+            if (stockPositions.Count > 0)
+            {
+                await context.SaveChangesAsync();
+            }
+        }
     }
 
     public interface IDatabaseService
@@ -90,5 +123,13 @@ namespace OrderEntry.Database
         Task Save(List<StockOrder> stockOrders);
 
         Task Save(List<OptionOrder> optionOrders);
+
+        Task<List<InteractiveBrokersStock>> GetInteractiveBrokersStocks();
+
+        Task<int> Delete(List<InteractiveBrokersStock> stockPositions, InteractiveBrokersStockComparer comparer);
+
+        Task Insert(List<InteractiveBrokersStock> stockPositions);
+
+        Task Update(List<InteractiveBrokersStock> stockPositions);
     }
 }
