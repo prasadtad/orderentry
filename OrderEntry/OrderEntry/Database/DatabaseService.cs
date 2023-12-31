@@ -76,11 +76,16 @@ namespace OrderEntry.Database
             return await context.InteractiveBrokersStocks.AsNoTracking().ToListAsync();
         }
 
-        public async Task<int> Delete(List<InteractiveBrokersStock> stockPositions, InteractiveBrokersStockComparer comparer)
+        public async Task<int> Delete(List<InteractiveBrokersStock> stockPositions)
         {
             if (stockPositions.Count == 0) return 0;
 
-            return await context.InteractiveBrokersStocks.Where(s => stockPositions.Any(p => p.AccountId == s.AccountId && p.Ticker == s.Ticker)).ExecuteDeleteAsync();
+            foreach (var stockPosition in stockPositions)
+            {
+                var entity = context.InteractiveBrokersStocks.Attach(stockPosition);
+                entity.State = EntityState.Deleted;
+            }
+            return await context.SaveChangesAsync();
         }
 
         public async Task Insert(List<InteractiveBrokersStock> stockPositions)
@@ -126,7 +131,7 @@ namespace OrderEntry.Database
 
         Task<List<InteractiveBrokersStock>> GetInteractiveBrokersStocks();
 
-        Task<int> Delete(List<InteractiveBrokersStock> stockPositions, InteractiveBrokersStockComparer comparer);
+        Task<int> Delete(List<InteractiveBrokersStock> stockPositions);
 
         Task Insert(List<InteractiveBrokersStock> stockPositions);
 

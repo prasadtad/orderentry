@@ -30,7 +30,7 @@ namespace AutoTrader
 
             var deletes = dbPositions.Except(positions, comparer).ToList();
 
-            var deletedCount = await databaseService.Delete(deletes, comparer);
+            var deletedCount = await databaseService.Delete(deletes);
             logger.LogInformation("Deleted {count} positions", deletedCount);
 
             var inserts = positions.Except(dbPositions, comparer).ToList();
