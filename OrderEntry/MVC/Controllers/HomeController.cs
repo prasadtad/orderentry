@@ -98,6 +98,37 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
         return View();
     }
 
+    public async Task<IActionResult> StockPositions()
+    {
+        var interactiveBrokersStocks = await GetInteractiveBrokersStocks();
+        var allStockOrders = await GetStockOrders();
+        var interactiveBrokersStockOrders = new List<StockOrder>();
+        var parseSettings = await GetParseSettings();
+        foreach (var parseSetting in parseSettings)
+        {
+            if (parseSetting.Mode != Modes.Stock || parseSetting.Broker != Brokers.InteractiveBrokers) continue;
+
+            interactiveBrokersStockOrders.AddRange(allStockOrders.Where(o => o.ParseSettingKey == parseSetting.Key));
+        }
+        
+        return View(new StockPositionsViewModel {
+            InteractiveBrokers = [.. interactiveBrokersStocks.Select(s => {
+                var parseSetting = parseSettings.SingleOrDefault(p => p.AccountId == s.AccountId);
+                var orderExists = parseSetting == null ? false : interactiveBrokersStockOrders.Any(o => o.ParseSettingKey == parseSetting.Key && o.Ticker == s.Ticker);
+                var viewModel = new InteractiveBrokersStockViewModel
+                {
+                    Account = parseSetting?.Account ?? s.AccountId,
+                    ActivelyTrade = s.ActivelyTrade,
+                    AverageCost = s.AverageCost,
+                    Count = s.Count,
+                    Ticker = s.Ticker,
+                    BackgroundColor = parseSetting == null ? "gray" : !s.ActivelyTrade ? "blue" : !orderExists ? "red" : "green"
+                };
+                return viewModel;
+            }).OrderBy(o => o.BackgroundColor == "gray" ? 4 : o.BackgroundColor == "blue" ? 3 : o.BackgroundColor == "green" ? 2 : 1)]
+        });
+    }
+
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Error()
     {
@@ -213,6 +244,30 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
         if (orders.Count > 0) memoryCache.Set(key, orders);
 
         return orders;
+    }
+
+    private async Task<List<StockOrder>> GetStockOrders()
+    {
+        var key = "StockOrders";
+        var stockOrders = memoryCache.Get<List<StockOrder>>(key);
+        if (stockOrders != null) return stockOrders;
+
+        stockOrders = await databaseService.GetStockOrders();
+        if (stockOrders.Count > 0) memoryCache.Set(key, stockOrders);
+
+        return stockOrders;
+    }
+
+    private async Task<List<InteractiveBrokersStock>> GetInteractiveBrokersStocks()
+    {
+        var key = "InteractiveBrokersStocks";
+        var interactiveBrokersStocks = memoryCache.Get<List<InteractiveBrokersStock>>(key);
+        if (interactiveBrokersStocks != null) return interactiveBrokersStocks;
+
+        interactiveBrokersStocks = await databaseService.GetInteractiveBrokersStocks();
+        if (interactiveBrokersStocks.Count > 0) memoryCache.Set(key, interactiveBrokersStocks);
+
+        return interactiveBrokersStocks;
     }
 }
 

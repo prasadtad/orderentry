@@ -25,6 +25,12 @@
     public class CharlesSchwabSettings
     {
         public required string ConsumerKey { get; set; }
+
+        public required string CookieFilePath { get; set; }
+
+        public required string Username { get; set; }
+
+        public required string Password { get; set; }
     }
 
     public class InteractiveBrokersSettings

@@ -18,6 +18,11 @@ namespace OrderEntry.Database
             return await context.StockOrders.AnyAsync(o => o.ParseSettingKey == parseSettingKey && o.WatchDate == watchDate);
         }
 
+        public async Task<List<StockOrder>> GetStockOrders()
+        {
+            return await context.StockOrders.ToListAsync();
+        }
+
         public async Task<List<StockOrder>> GetStockOrders(string parseSettingKey, DateOnly watchDate)
         {
             return await context.StockOrders.Where(o => o.ParseSettingKey == parseSettingKey && o.WatchDate == watchDate).ToListAsync();
@@ -112,6 +117,8 @@ namespace OrderEntry.Database
     public interface IDatabaseService
     {
         Task<List<ParseSetting>> GetParseSettings();
+
+        Task<List<StockOrder>> GetStockOrders();
 
         Task<bool> HasStockOrders(string parseSettingKey, DateOnly watchDate);
 
