@@ -28,6 +28,8 @@
 
         public required string CookieFilePath { get; set; }
 
+        public required string PositionsFilePath { get; set; }
+
         public required string Username { get; set; }
 
         public required string Password { get; set; }

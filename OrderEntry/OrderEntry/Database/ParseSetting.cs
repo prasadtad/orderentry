@@ -19,9 +19,9 @@ namespace OrderEntry.Database
 
         [Column("broker")] public required Brokers Broker { get; set; }
 
-        [Column("account_id")] public string? AccountId { get; set;}
+        [Column("account_id")] public required string AccountId { get; set;}
 
-        [Column("account")] public string? Account { get; set;}
+        [Column("account")] public required string Account { get; set;}
 
         [Column("active")] public required bool Active { get; set;}
 

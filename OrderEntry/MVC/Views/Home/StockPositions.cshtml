@@ -30,4 +30,29 @@
             }
         </tbody>
     </table>
+    <h1 class="display-4">Charles Schwab Stock Positions</h1>
+    <hr />
+    <table>
+        <thead>
+            <tr>
+                <td>Account</td>
+                <td>Ticker</td>
+                <td>Count</td>
+                <td>Average Cost</td>
+                <td>Actively Trade</td>
+            </tr>
+        </thead>
+        <tbody>
+            @for (var i = 0; i < Model.CharlesSchwab.Count; i++)
+            {
+                <tr style="background-color: @Model.CharlesSchwab[i].BackgroundColor">                  
+                    <td>@Model.CharlesSchwab[i].Account</td>
+                    <td>@Model.CharlesSchwab[i].Ticker</td>
+                    <td>@Model.CharlesSchwab[i].Count</td>
+                    <td>@Model.CharlesSchwab[i].AverageCost</td>
+                    <td>@(Model.CharlesSchwab[i].ActivelyTrade ? "yes": "no")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
 </div>

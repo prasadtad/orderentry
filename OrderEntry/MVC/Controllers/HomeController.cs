@@ -100,32 +100,46 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
 
     public async Task<IActionResult> StockPositions()
     {
-        var interactiveBrokersStocks = await GetInteractiveBrokersStocks();
+        var stockPositions = await GetStockPositions();
         var allStockOrders = await GetStockOrders();
         var interactiveBrokersStockOrders = new List<StockOrder>();
+        var charlesSchwabStockOrders = new List<StockOrder>();
         var parseSettings = await GetParseSettings();
         foreach (var parseSetting in parseSettings)
         {
-            if (parseSetting.Mode != Modes.Stock || parseSetting.Broker != Brokers.InteractiveBrokers) continue;
+            if (parseSetting.Mode != Modes.Stock) continue;
 
-            interactiveBrokersStockOrders.AddRange(allStockOrders.Where(o => o.ParseSettingKey == parseSetting.Key));
+            interactiveBrokersStockOrders.AddRange(allStockOrders.Where(o => o.ParseSettingKey == parseSetting.Key && parseSetting.Broker == Brokers.InteractiveBrokers));
+            charlesSchwabStockOrders.AddRange(allStockOrders.Where(o => o.ParseSettingKey == parseSetting.Key && parseSetting.Broker == Brokers.CharlesSchwab));
         }
-        
-        return View(new StockPositionsViewModel {
-            InteractiveBrokers = [.. interactiveBrokersStocks.Select(s => {
-                var parseSetting = parseSettings.SingleOrDefault(p => p.AccountId == s.AccountId);
-                var orderExists = parseSetting == null ? false : interactiveBrokersStockOrders.Any(o => o.ParseSettingKey == parseSetting.Key && o.Ticker == s.Ticker);
-                var viewModel = new InteractiveBrokersStockViewModel
+
+        List<StockPositionViewModel> GetStockPositionsViewModel(List<StockPosition> stockPositions, Brokers broker)
+        {
+            return [.. stockPositions.Where(s => s.Broker == broker).Select(stockPosition =>
+            {
+                var parseSetting = parseSettings!.SingleOrDefault(p => p.Broker == broker && p.AccountId == stockPosition.AccountId);
+                var orderExists = parseSetting == null ? (bool?) null :
+                                  parseSetting.Broker == Brokers.CharlesSchwab ? 
+                                     charlesSchwabStockOrders!.Any(o => o.ParseSettingKey == parseSetting.Key && o.Ticker == stockPosition.Ticker)
+                                   : interactiveBrokersStockOrders!.Any(o => o.ParseSettingKey == parseSetting.Key && o.Ticker == stockPosition.Ticker);
+                var viewModel = new StockPositionViewModel
                 {
-                    Account = parseSetting?.Account ?? s.AccountId,
-                    ActivelyTrade = s.ActivelyTrade,
-                    AverageCost = s.AverageCost,
-                    Count = s.Count,
-                    Ticker = s.Ticker,
-                    BackgroundColor = parseSetting == null ? "gray" : !s.ActivelyTrade ? "blue" : !orderExists ? "red" : "green"
+                    Broker = stockPosition.Broker.ToString(),
+                    Account = parseSetting?.Account ?? stockPosition.AccountId,
+                    ActivelyTrade = stockPosition.ActivelyTrade,
+                    AverageCost = stockPosition.AverageCost,
+                    Count = stockPosition.Count,
+                    Ticker = stockPosition.Ticker,
+                    BackgroundColor = orderExists == null ? "gray" : !stockPosition.ActivelyTrade ? "blue" : !orderExists.Value ? "red" : "green"
                 };
                 return viewModel;
-            }).OrderBy(o => o.BackgroundColor == "gray" ? 4 : o.BackgroundColor == "blue" ? 3 : o.BackgroundColor == "green" ? 2 : 1)]
+            }).OrderBy(o => o.BackgroundColor == "gray" ? 4 : o.BackgroundColor == "blue" ? 3 : o.BackgroundColor == "green" ? 2 : 1)];
+        }
+
+        return View(new StockPositionsViewModel
+        {
+            InteractiveBrokers = GetStockPositionsViewModel(stockPositions, Brokers.InteractiveBrokers),
+            CharlesSchwab = GetStockPositionsViewModel(stockPositions, Brokers.CharlesSchwab)
         });
     }
 
@@ -143,12 +157,12 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
                                       .Where(o => model.Exists(m => m.Id == o.Id && m.Selected));
         if (stockOrders == null) return;
 
-        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(importedStockParseSetting!.Account!,stockOrders))
+        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(importedStockParseSetting!.Account!, stockOrders))
                                         .Cast<StockOrder>();
         var submittedOrders = new List<StockOrder>();
         foreach (var order in ordersWithoutPositions)
         {
-            if (await interactiveBrokersService.Submit(importedStockParseSetting!.Account!,order))
+            if (await interactiveBrokersService.Submit(importedStockParseSetting!.Account!, order))
             {
                 submittedOrders.Add(order);
             }
@@ -166,19 +180,19 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
                                       .Where(o => model.Exists(m => m.Id == o.Id && m.Selected));
         if (optionOrders == null) return;
 
-        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(importedOptionParseSetting!.Account!,optionOrders))
+        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(importedOptionParseSetting!.Account!, optionOrders))
                                         .Cast<OptionOrder>();
         var ordersWithPrices = new List<(OptionOrder order, decimal price, string tradingClass)>();
         foreach (var order in ordersWithoutPositions)
         {
-            var price = await interactiveBrokersService.GetCurrentPrice(importedOptionParseSetting!.Account!,order.Ticker, order.StrikePrice, order.StrikeDate, order.Type);
+            var price = await interactiveBrokersService.GetCurrentPrice(importedOptionParseSetting!.Account!, order.Ticker, order.StrikePrice, order.StrikeDate, order.Type);
             if (price != null)
                 ordersWithPrices.Add((order, price.Value.price, price.Value.tradingClass));
         }
         var submittedOrders = new List<OptionOrder>();
         foreach (var orderWithPrice in ordersWithPrices)
         {
-            if (await interactiveBrokersService.Submit(importedOptionParseSetting!.Account!,orderWithPrice.order, orderWithPrice.tradingClass))
+            if (await interactiveBrokersService.Submit(importedOptionParseSetting!.Account!, orderWithPrice.order, orderWithPrice.tradingClass))
             {
                 submittedOrders.Add(orderWithPrice.order);
             }
@@ -258,16 +272,16 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
         return stockOrders;
     }
 
-    private async Task<List<InteractiveBrokersStock>> GetInteractiveBrokersStocks()
+    private async Task<List<StockPosition>> GetStockPositions()
     {
-        var key = "InteractiveBrokersStocks";
-        var interactiveBrokersStocks = memoryCache.Get<List<InteractiveBrokersStock>>(key);
-        if (interactiveBrokersStocks != null) return interactiveBrokersStocks;
+        var key = "StockPositions";
+        var stockPositions = memoryCache.Get<List<StockPosition>>(key);
+        if (stockPositions != null) return stockPositions;
 
-        interactiveBrokersStocks = await databaseService.GetInteractiveBrokersStocks();
-        if (interactiveBrokersStocks.Count > 0) memoryCache.Set(key, interactiveBrokersStocks);
+        stockPositions = await databaseService.GetStockPositions();
+        if (stockPositions.Count > 0) memoryCache.Set(key, stockPositions);
 
-        return interactiveBrokersStocks;
+        return stockPositions;
     }
 }
 

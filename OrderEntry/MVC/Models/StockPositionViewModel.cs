@@ -1,8 +1,10 @@
 namespace MVC.Models
 {
-    public class InteractiveBrokersStockViewModel
+    public class StockPositionViewModel
     {
-        public required string Account { get; set; }
+        public required string Broker { get; set; }
+
+        public string? Account { get; set; }
 
         public required string Ticker { get; set; }
 

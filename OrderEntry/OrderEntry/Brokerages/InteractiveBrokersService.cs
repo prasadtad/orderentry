@@ -132,7 +132,7 @@ namespace OrderEntry.Brokerages
             return ordersWithoutPositions;
         }
 
-        public async Task<List<InteractiveBrokersStock>> GetStockPositions(Func<string, string, bool> isActivelyTrade)
+        public async Task<List<StockPosition>> GetStockPositions(Func<string, string, bool> isActivelyTrade)
         {
             var twsController = twsObjectFactory.TwsControllerBase;
 
@@ -140,8 +140,9 @@ namespace OrderEntry.Brokerages
 
             var positions = await twsController.RequestPositions();
 
-            return positions.Select(p => new InteractiveBrokersStock
+            return positions.Select(p => new StockPosition
             {
+                Broker = Brokers.InteractiveBrokers,
                 AccountId = p.Account,
                 AverageCost = Convert.ToDecimal(p.AverageCost),
                 Count = Convert.ToDecimal(p.Position),
@@ -284,7 +285,7 @@ namespace OrderEntry.Brokerages
 
         Task<List<IOrder>> GetOrdersWithoutPositions(string account, IEnumerable<IOrder> orders);
 
-        Task<List<InteractiveBrokersStock>> GetStockPositions(Func<string, string, bool> isActivelyTrade);
+        Task<List<StockPosition>> GetStockPositions(Func<string, string, bool> isActivelyTrade);
 
         Task<bool> Submit(string account, StockOrder order);
 

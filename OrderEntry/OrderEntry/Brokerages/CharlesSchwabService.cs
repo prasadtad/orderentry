@@ -4,6 +4,7 @@ using System.Web;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using OrderEntry.MindfulTrader;
+using OrderEntry.Utils;
 
 namespace OrderEntry.Brokerages
 {
@@ -19,6 +20,53 @@ namespace OrderEntry.Brokerages
 		{
             this.httpClient = httpClient;
 			this.options = options;
+        }
+
+        public async Task<List<StockPosition>> GetStockPositions(Func<string, bool> isActivelyTrade)
+        {
+            var stockPositions = new List<StockPosition>();
+            var readPositions = false;
+            string? accountId = null;
+            foreach (var line in await File.ReadAllLinesAsync(options.Value.PositionsFilePath))
+            {
+                if (accountId == null)
+                {
+                    accountId = line["Position Statement for ".Length..];
+                    accountId = accountId[..accountId.IndexOf(' ')];
+                    continue;
+                }
+                if (line.StartsWith("Instrument,Description,Qty,Days,Trade Price,Mark,Mrk Chng,P/L Open,Net Liq,P/L Open,P/L Day,BP Effect"))
+                {
+                    readPositions = true;
+                    continue;
+                }
+                if (!readPositions) continue;
+                var parts = line.SplitOutsideQuotes(',');
+                if (parts.Length == 0) 
+                {
+                    readPositions = false;
+                    continue;
+                }
+                if (parts[0] == parts[1]) continue;
+                var quantity = decimal.TryParse(parts[2].Replace("+", ""), out var q)? q : (decimal?) null;
+                if (quantity == null) 
+                {
+                    Console.WriteLine($"Cannot get charles schwab position from {line}, ignoring");
+                    continue;
+                }
+                var stockPosition = new StockPosition
+                {
+                    Broker = Brokers.CharlesSchwab,
+                    AccountId = accountId,
+                    Ticker = parts[0],
+                    Count = quantity.Value,
+                    AverageCost = decimal.Parse(parts[4]),
+                    ActivelyTrade = isActivelyTrade(parts[0])                    
+                };
+                stockPositions.Add(stockPosition);
+            }
+
+            return stockPositions;
         }
 
         (string entry, string profit, string stop) ICharlesSchwabService.GetPastableFormat(StockOrder order)
@@ -159,6 +207,8 @@ namespace OrderEntry.Brokerages
 
 	public interface ICharlesSchwabService
     {
+        Task<List<StockPosition>> GetStockPositions(Func<string, bool> isActivelyTrade);
+        
         (string entry, string profit, string stop) GetPastableFormat(StockOrder order);
 
         (string entry, string profit) GetPastableFormat(OptionOrder order);

@@ -12,7 +12,7 @@ namespace OrderEntry.Database
 
         public DbSet<OptionOrder> OptionOrders { get; set; }
 
-        public DbSet<InteractiveBrokersStock> InteractiveBrokersStocks { get; set; }
+        public DbSet<StockPosition> StockPositions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.HasPostgresEnum<Modes>()
                                                                                           .HasPostgresEnum<Strategies>()

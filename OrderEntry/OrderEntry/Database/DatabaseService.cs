@@ -76,24 +76,24 @@ namespace OrderEntry.Database
             }
         }
 
-        public async Task<List<InteractiveBrokersStock>> GetInteractiveBrokersStocks()
+        public async Task<List<StockPosition>> GetStockPositions()
         {
-            return await context.InteractiveBrokersStocks.AsNoTracking().ToListAsync();
+            return await context.StockPositions.AsNoTracking().ToListAsync();
         }
 
-        public async Task<int> Delete(List<InteractiveBrokersStock> stockPositions)
+        public async Task<int> Delete(List<StockPosition> stockPositions)
         {
             if (stockPositions.Count == 0) return 0;
 
             foreach (var stockPosition in stockPositions)
             {
-                var entity = context.InteractiveBrokersStocks.Attach(stockPosition);
+                var entity = context.StockPositions.Attach(stockPosition);
                 entity.State = EntityState.Deleted;
             }
             return await context.SaveChangesAsync();
         }
 
-        public async Task Insert(List<InteractiveBrokersStock> stockPositions)
+        public async Task Insert(List<StockPosition> stockPositions)
         {
             if (stockPositions.Count > 0) context.AddRange(stockPositions);
 
@@ -103,7 +103,7 @@ namespace OrderEntry.Database
             }
         }
 
-        public async Task Update(List<InteractiveBrokersStock> stockPositions)
+        public async Task Update(List<StockPosition> stockPositions)
         {
             if (stockPositions.Count > 0) context.UpdateRange(stockPositions);
 
@@ -136,12 +136,12 @@ namespace OrderEntry.Database
 
         Task Save(List<OptionOrder> optionOrders);
 
-        Task<List<InteractiveBrokersStock>> GetInteractiveBrokersStocks();
+        Task<List<StockPosition>> GetStockPositions();
 
-        Task<int> Delete(List<InteractiveBrokersStock> stockPositions);
+        Task<int> Delete(List<StockPosition> stockPositions);
 
-        Task Insert(List<InteractiveBrokersStock> stockPositions);
+        Task Insert(List<StockPosition> stockPositions);
 
-        Task Update(List<InteractiveBrokersStock> stockPositions);
+        Task Update(List<StockPosition> stockPositions);
     }
 }
