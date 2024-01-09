@@ -81,6 +81,11 @@ namespace OrderEntry.Database
             return await context.StockPositions.AsNoTracking().ToListAsync();
         }
 
+        public async Task<List<StockPosition>> GetStockPositions(Brokers broker)
+        {
+            return await context.StockPositions.Where(o => o.Broker == broker).AsNoTracking().ToListAsync();
+        }
+
         public async Task<int> Delete(List<StockPosition> stockPositions)
         {
             if (stockPositions.Count == 0) return 0;
@@ -137,6 +142,8 @@ namespace OrderEntry.Database
         Task Save(List<OptionOrder> optionOrders);
 
         Task<List<StockPosition>> GetStockPositions();
+
+        Task<List<StockPosition>> GetStockPositions(Brokers broker);
 
         Task<int> Delete(List<StockPosition> stockPositions);
 

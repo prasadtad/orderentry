@@ -33,6 +33,10 @@ namespace OrderEntry.Brokerages
                 {
                     accountId = line["Position Statement for ".Length..];
                     accountId = accountId[..accountId.IndexOf(' ')];
+
+                    var statementTimeEST = DateTime.ParseExact(line[(line.IndexOf(" on ") + " on ".Length)..], "M/d/yy hh:mm:ss", null);
+                    if (DateOnly.FromDateTime(statementTimeEST) != DateUtils.TodayEST)
+                        throw new Exception($"{options.Value.PositionsFilePath} statement date is {DateOnly.FromDateTime(statementTimeEST)}, not {DateUtils.TodayEST}");
                     continue;
                 }
                 if (line.StartsWith("Instrument,Description,Qty,Days,Trade Price,Mark,Mrk Chng,P/L Open,Net Liq,P/L Open,P/L Day,BP Effect"))
@@ -42,7 +46,7 @@ namespace OrderEntry.Brokerages
                 }
                 if (!readPositions) continue;
                 var parts = line.SplitOutsideQuotes(',');
-                if (parts.Length == 0) 
+                if (parts == null || parts.Length == 0) 
                 {
                     readPositions = false;
                     continue;

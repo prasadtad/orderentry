@@ -39,6 +39,9 @@ namespace Importer
                     services.AddHttpClient();
                     services.Configure<MindfulTraderSettings>(builder.Configuration.GetSection("MindfulTrader"));
                     services.Configure<DatabaseSettings>(builder.Configuration.GetSection("Database"));
+                    services.Configure<CharlesSchwabSettings>(builder.Configuration.GetSection("CharlesSchwab"));
+                    services.Configure<InteractiveBrokersSettings>(builder.Configuration.GetSection("InteractiveBrokers"));
+                    services.AddBrokerages();
                     services.AddSingleton<IMindfulTraderService, MindfulTraderService>();
                     services.AddDatabase();
                     services.AddSingleton<App>();
