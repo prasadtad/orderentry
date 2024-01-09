@@ -68,7 +68,7 @@ namespace Importer
         private async Task SyncOrders()
         {
             var watchDate = DateUtils.TodayEST;
-            var earliestDeleteDate = watchDate.AddDays(-14);
+            var earliestDeleteDate = watchDate.AddDays(-7);
 
             var deletedStockOrderCount = await databaseService.DeleteStockOrders(earliestDeleteDate);
             logger.LogInformation("Deleted {count} stock orders before {watchDate}", deletedStockOrderCount, earliestDeleteDate);
