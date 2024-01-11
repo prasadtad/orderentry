@@ -58,6 +58,11 @@ namespace OrderEntry.Brokerages
                     Console.WriteLine($"Cannot get charles schwab position from {line}, ignoring");
                     continue;
                 }
+                if (quantity == 0)
+                {
+                    Console.WriteLine($"Charles schwab count from {line} is 0, ignoring");
+                    continue;
+                }
                 var stockPosition = new StockPosition
                 {
                     Broker = Brokers.CharlesSchwab,
