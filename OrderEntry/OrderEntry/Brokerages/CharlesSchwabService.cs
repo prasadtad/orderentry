@@ -34,7 +34,7 @@ namespace OrderEntry.Brokerages
                     accountId = line["Position Statement for ".Length..];
                     accountId = accountId[..accountId.IndexOf(' ')];
 
-                    var statementTimeEST = DateTime.ParseExact(line[(line.IndexOf(" on ") + " on ".Length)..], "M/d/yy hh:mm:ss", null);
+                    var statementTimeEST = DateTime.ParseExact(line[(line.IndexOf(" on ") + " on ".Length)..], "M/d/yy HH:mm:ss", null);
                     if (DateOnly.FromDateTime(statementTimeEST) != DateUtils.TodayEST)
                         throw new Exception($"{options.Value.PositionsFilePath} statement date is {DateOnly.FromDateTime(statementTimeEST)}, not {DateUtils.TodayEST}");
                     continue;
