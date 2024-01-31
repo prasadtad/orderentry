@@ -25,8 +25,13 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
     public async Task<IActionResult> Stocks()
     {
         var importedStockParseSetting = memoryCache.Get<ParseSetting>(ImportedStockParseSettingKey);
+        var stockPositions = await GetStockPositions();
         var accountBalance = importedStockParseSetting?.AccountBalance ?? 0;
         var stockOrders = await GetStockOrders(importedStockParseSetting);
+        stockOrders = stockOrders.Where(s => !stockPositions.Any(p => 
+                    p.Ticker == s.Ticker && 
+                    p.Broker == importedStockParseSetting.Broker && 
+                    p.AccountId == importedStockParseSetting.AccountId)).ToList();
         ViewBag.Strategy = importedStockParseSetting?.Strategy ?? Strategies.None;
         ViewBag.AccountBalance = accountBalance;
         var model = new List<StockOrderViewModel>();
@@ -157,10 +162,8 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
                                       .Where(o => model.Exists(m => m.Id == o.Id && m.Selected));
         if (stockOrders == null) return;
 
-        var ordersWithoutPositions = (await interactiveBrokersService.GetOrdersWithoutPositions(importedStockParseSetting!.Account!, stockOrders))
-                                        .Cast<StockOrder>();
         var submittedOrders = new List<StockOrder>();
-        foreach (var order in ordersWithoutPositions)
+        foreach (var order in stockOrders)
         {
             if (await interactiveBrokersService.Submit(importedStockParseSetting!.Account!, order))
             {

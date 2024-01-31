@@ -2,6 +2,7 @@
 using AutoFinance.Broker.InteractiveBrokers.Constants;
 using AutoFinance.Broker.InteractiveBrokers.EventArgs;
 using IBApi;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OrderEntry.MindfulTrader;
 
@@ -10,23 +11,24 @@ namespace OrderEntry.Brokerages
     public class InteractiveBrokersService : IInteractiveBrokersService
     {
         private readonly TwsObjectFactory twsObjectFactory;
+        private readonly ILogger<InteractiveBrokersService> logger;
 
-        public InteractiveBrokersService(IOptions<InteractiveBrokersSettings> options)
+        public InteractiveBrokersService(IOptions<InteractiveBrokersSettings> options, ILogger<InteractiveBrokersService> logger)
         {
             this.twsObjectFactory = new TwsObjectFactory("localhost", options.Value.Port, 1);
+            this.logger = logger;
         }
 
-        public async Task Display(string account)
+        public async Task<Dictionary<string, string>> Display(string account)
         {
-            Console.WriteLine($"IB: Connecting...");
+            logger.LogDebug("Connecting...");
 
             var twsController = twsObjectFactory.TwsControllerBase;
             await twsController.EnsureConnectedAsync();
 
-            Console.WriteLine($"IB: Getting {account} account details...");
-            var accountDetails = await twsController.GetAccountDetailsAsync(account);
-            foreach (var key in accountDetails.Keys.OrderBy(k => k))
-                Console.WriteLine($"{key}={accountDetails[key]}");
+            logger.LogDebug("Getting {account} details...", account);
+            var ad = await twsController.GetAccountDetailsAsync(account);
+            return ad.ToDictionary();
         }
 
         public async Task<decimal?> GetCurrentPrice(string account, string ticker)
@@ -153,131 +155,147 @@ namespace OrderEntry.Brokerages
 
         public async Task<bool> Submit(string account, StockOrder stockOrder)
         {
-            var twsController = twsObjectFactory.TwsControllerBase;
-
-            Console.WriteLine($"IB: Submitting stock order to {account}");
-            await twsController.EnsureConnectedAsync();
-
-            var contract = new Contract
+            try
             {
-                SecType = TwsContractSecType.Stock,
-                Symbol = stockOrder.Ticker,
-                Exchange = TwsExchange.Smart,
-                PrimaryExch = TwsExchange.Island,
-                Currency = TwsCurrency.Usd
-            };
+                var twsController = twsObjectFactory.TwsControllerBase;
 
-            if (stockOrder.IBEntryOrderId == null)
-                stockOrder.IBEntryOrderId = await twsController.GetNextValidIdAsync();
+                logger.LogInformation("Submitting stock {order} to {account}", stockOrder, account);
+                await twsController.EnsureConnectedAsync();
 
-            if (stockOrder.IBProfitOrderId == null)
-                stockOrder.IBProfitOrderId = await twsController.GetNextValidIdAsync();
+                var contract = new Contract
+                {
+                    SecType = TwsContractSecType.Stock,
+                    Symbol = stockOrder.Ticker,
+                    Exchange = TwsExchange.Smart,
+                    PrimaryExch = TwsExchange.Island,
+                    Currency = TwsCurrency.Usd
+                };
 
-            if (stockOrder.IBStopOrderId == null)
-                stockOrder.IBStopOrderId = await twsController.GetNextValidIdAsync();
+                if (stockOrder.IBEntryOrderId == null)
+                    stockOrder.IBEntryOrderId = await twsController.GetNextValidIdAsync();
 
-            Order entryOrder = new Order()
+                if (stockOrder.IBProfitOrderId == null)
+                    stockOrder.IBProfitOrderId = await twsController.GetNextValidIdAsync();
+
+                if (stockOrder.IBStopOrderId == null)
+                    stockOrder.IBStopOrderId = await twsController.GetNextValidIdAsync();
+
+                Order entryOrder = new Order()
+                {
+                    Account = account,
+                    Action = TwsOrderActions.Buy,
+                    OrderType = TwsOrderType.Limit,
+                    TotalQuantity = stockOrder.Count,
+                    LmtPrice = Convert.ToDouble(stockOrder.PotentialEntry),
+                    Tif = "Day",
+                    Transmit = false,
+                };
+
+                Order takeProfit = new Order()
+                {
+                    Account = account,
+                    Action = TwsOrderActions.Sell,
+                    OrderType = TwsOrderType.Limit,
+                    TotalQuantity = stockOrder.Count,
+                    LmtPrice = Convert.ToDouble(stockOrder.PotentialProfit),
+                    ParentId = stockOrder.IBEntryOrderId.Value,
+                    Tif = TwsTimeInForce.GoodTillClose,
+                    Transmit = false,
+                };
+
+                Order stopLoss = new Order()
+                {
+                    Account = account,
+                    Action = TwsOrderActions.Sell,
+                    OrderType = TwsOrderType.StopLoss,
+                    TotalQuantity = stockOrder.Count,
+                    AuxPrice = Convert.ToDouble(stockOrder.PotentialStop),
+                    ParentId = stockOrder.IBEntryOrderId.Value,
+                    Tif = TwsTimeInForce.GoodTillClose,
+                    Transmit = true,
+                };
+
+                var entryOrderAckTask = twsController.PlaceOrderAsync(stockOrder.IBEntryOrderId.Value, contract, entryOrder);
+                var takeProfitOrderAckTask = twsController.PlaceOrderAsync(stockOrder.IBProfitOrderId.Value, contract, takeProfit);
+                var stopOrderAckTask = twsController.PlaceOrderAsync(stockOrder.IBStopOrderId.Value, contract, stopLoss);
+                return (await Task.WhenAll(entryOrderAckTask, takeProfitOrderAckTask, stopOrderAckTask)).All(result => result);
+            }
+            catch (Exception ex)
             {
-                Account = account,
-                Action = TwsOrderActions.Buy,
-                OrderType = TwsOrderType.Limit,
-                TotalQuantity = stockOrder.Count,
-                LmtPrice = Convert.ToDouble(stockOrder.PotentialEntry),
-                Tif = "Day",
-                Transmit = false,
-            };
-
-            Order takeProfit = new Order()
-            {
-                Account = account,
-                Action = TwsOrderActions.Sell,
-                OrderType = TwsOrderType.Limit,
-                TotalQuantity = stockOrder.Count,
-                LmtPrice = Convert.ToDouble(stockOrder.PotentialProfit),
-                ParentId = stockOrder.IBEntryOrderId.Value,
-                Tif = TwsTimeInForce.GoodTillClose,
-                Transmit = false,
-            };
-
-            Order stopLoss = new Order()
-            {
-                Account = account,
-                Action = TwsOrderActions.Sell,
-                OrderType = TwsOrderType.StopLoss,
-                TotalQuantity = stockOrder.Count,
-                AuxPrice = Convert.ToDouble(stockOrder.PotentialStop),
-                ParentId = stockOrder.IBEntryOrderId.Value,
-                Tif = TwsTimeInForce.GoodTillClose,
-                Transmit = true,
-            };
-
-            var entryOrderAckTask = twsController.PlaceOrderAsync(stockOrder.IBEntryOrderId.Value, contract, entryOrder);
-            var takeProfitOrderAckTask = twsController.PlaceOrderAsync(stockOrder.IBProfitOrderId.Value, contract, takeProfit);
-            var stopOrderAckTask = twsController.PlaceOrderAsync(stockOrder.IBStopOrderId.Value, contract, stopLoss);
-            return (await Task.WhenAll(entryOrderAckTask, takeProfitOrderAckTask, stopOrderAckTask)).All(result => result);
+                logger.LogError(ex, "Couldn't submit stock {order} to {account}", stockOrder, account);
+                return false;
+            }
         }
 
         public async Task<bool> Submit(string account, OptionOrder optionOrder, string tradingClass)
         {
-            var twsController = twsObjectFactory.TwsControllerBase;
-
-            Console.WriteLine($"IB: Submitting option order to {account}");
-            await twsController.EnsureConnectedAsync();
-
-            var contract = new Contract
+            try
             {
-                SecType = TwsContractSecType.Option,
-                LocalSymbol = $"{(optionOrder.Type == OptionTypes.Call ? "C" : throw new NotImplementedException())} {optionOrder.Ticker}  {optionOrder.StrikeDate:yyyyMMdd} 72 M",
-                Symbol = optionOrder.Ticker,
-                Exchange = TwsExchange.Smart,
-                PrimaryExch = TwsExchange.Island,
-                Currency = TwsCurrency.Usd,
-                LastTradeDateOrContractMonth = optionOrder.StrikeDate.ToString("yyyyMMdd"),
-                Strike = Convert.ToDouble(optionOrder.StrikePrice),
-                Right = optionOrder.Type == OptionTypes.Call ? "C" : throw new NotImplementedException(),
-                Multiplier = "100",
-                TradingClass = tradingClass
-            };
+                var twsController = twsObjectFactory.TwsControllerBase;
+
+                logger.LogInformation("Submitting option {order} to {account}", optionOrder, account);
+                await twsController.EnsureConnectedAsync();
+
+                var contract = new Contract
+                {
+                    SecType = TwsContractSecType.Option,
+                    LocalSymbol = $"{(optionOrder.Type == OptionTypes.Call ? "C" : throw new NotImplementedException())} {optionOrder.Ticker}  {optionOrder.StrikeDate:yyyyMMdd} 72 M",
+                    Symbol = optionOrder.Ticker,
+                    Exchange = TwsExchange.Smart,
+                    PrimaryExch = TwsExchange.Island,
+                    Currency = TwsCurrency.Usd,
+                    LastTradeDateOrContractMonth = optionOrder.StrikeDate.ToString("yyyyMMdd"),
+                    Strike = Convert.ToDouble(optionOrder.StrikePrice),
+                    Right = optionOrder.Type == OptionTypes.Call ? "C" : throw new NotImplementedException(),
+                    Multiplier = "100",
+                    TradingClass = tradingClass
+                };
 
 
-            if (optionOrder.IBEntryOrderId == null)
-                optionOrder.IBEntryOrderId = await twsController.GetNextValidIdAsync();
+                if (optionOrder.IBEntryOrderId == null)
+                    optionOrder.IBEntryOrderId = await twsController.GetNextValidIdAsync();
 
-            if (optionOrder.IBProfitOrderId == null)
-                optionOrder.IBProfitOrderId = await twsController.GetNextValidIdAsync();
+                if (optionOrder.IBProfitOrderId == null)
+                    optionOrder.IBProfitOrderId = await twsController.GetNextValidIdAsync();
 
-            Order entryOrder = new Order()
+                Order entryOrder = new Order()
+                {
+                    Account = account,
+                    Action = TwsOrderActions.Buy,
+                    OrderType = TwsOrderType.Limit,
+                    TotalQuantity = optionOrder.Count,
+                    LmtPrice = Convert.ToDouble(optionOrder.PotentialEntry),
+                    Tif = "Day",
+                    Transmit = false,
+                };
+
+                Order takeProfit = new Order()
+                {
+                    Account = account,
+                    Action = TwsOrderActions.Sell,
+                    OrderType = TwsOrderType.Limit,
+                    TotalQuantity = optionOrder.Count,
+                    LmtPrice = Convert.ToDouble(optionOrder.PotentialProfit),
+                    ParentId = optionOrder.IBEntryOrderId.Value,
+                    Tif = TwsTimeInForce.GoodTillClose,
+                    Transmit = false,
+                };
+
+                var entryOrderAckTask = twsController.PlaceOrderAsync(optionOrder.IBEntryOrderId.Value, contract, entryOrder);
+                var takeProfitOrderAckTask = twsController.PlaceOrderAsync(optionOrder.IBProfitOrderId.Value, contract, takeProfit);
+                return (await Task.WhenAll(entryOrderAckTask, takeProfitOrderAckTask)).All(result => result);
+            }
+            catch (Exception ex)
             {
-                Account = account,
-                Action = TwsOrderActions.Buy,
-                OrderType = TwsOrderType.Limit,
-                TotalQuantity = optionOrder.Count,
-                LmtPrice = Convert.ToDouble(optionOrder.PotentialEntry),
-                Tif = "Day",
-                Transmit = false,
-            };
-
-            Order takeProfit = new Order()
-            {
-                Account = account,
-                Action = TwsOrderActions.Sell,
-                OrderType = TwsOrderType.Limit,
-                TotalQuantity = optionOrder.Count,
-                LmtPrice = Convert.ToDouble(optionOrder.PotentialProfit),
-                ParentId = optionOrder.IBEntryOrderId.Value,
-                Tif = TwsTimeInForce.GoodTillClose,
-                Transmit = false,
-            };
-
-            var entryOrderAckTask = twsController.PlaceOrderAsync(optionOrder.IBEntryOrderId.Value, contract, entryOrder);
-            var takeProfitOrderAckTask = twsController.PlaceOrderAsync(optionOrder.IBProfitOrderId.Value, contract, takeProfit);
-            return (await Task.WhenAll(entryOrderAckTask, takeProfitOrderAckTask)).All(result => result);
+                logger.LogError(ex, "Couldn't submit option {order} to {account}", optionOrder, account);
+                return false;
+            }
         }
     }
 
     public interface IInteractiveBrokersService
     {
-        Task Display(string account);
+        Task<Dictionary<string, string>> Display(string account);
 
         Task<decimal?> GetCurrentPrice(string account, string ticker);
 
