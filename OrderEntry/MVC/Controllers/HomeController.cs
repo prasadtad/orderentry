@@ -24,17 +24,21 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
 
     public async Task<IActionResult> Stocks()
     {
+        var model = new List<StockOrderViewModel>();
         var importedStockParseSetting = memoryCache.Get<ParseSetting>(ImportedStockParseSettingKey);
+        if (importedStockParseSetting == null)
+            return View(model);
+
         var stockPositions = await GetStockPositions();
-        var accountBalance = importedStockParseSetting?.AccountBalance ?? 0;
+        var accountBalance = importedStockParseSetting.AccountBalance;
         var stockOrders = await GetStockOrders(importedStockParseSetting);
         stockOrders = stockOrders.Where(s => !stockPositions.Any(p => 
                     p.Ticker == s.Ticker && 
                     p.Broker == importedStockParseSetting.Broker && 
                     p.AccountId == importedStockParseSetting.AccountId)).ToList();
-        ViewBag.Strategy = importedStockParseSetting?.Strategy ?? Strategies.None;
+        ViewBag.Strategy = importedStockParseSetting.Strategy;
         ViewBag.AccountBalance = accountBalance;
-        var model = new List<StockOrderViewModel>();
+        
         if (stockOrders != null)
         {
             var balance = 0.0m;
@@ -60,12 +64,16 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
 
     public async Task<IActionResult> Options()
     {
-        var importedOptionParseSetting = memoryCache.Get<ParseSetting>(ImportedOptionParseSettingKey);
-        var accountBalance = importedOptionParseSetting?.AccountBalance ?? 0;
-        var optionOrders = await GetOptionOrders(importedOptionParseSetting);
-        ViewBag.Strategy = importedOptionParseSetting?.Strategy ?? Strategies.None;
-        ViewBag.AccountBalance = accountBalance;
         var model = new List<OptionOrderViewModel>();
+        var importedOptionParseSetting = memoryCache.Get<ParseSetting>(ImportedOptionParseSettingKey);
+        if (importedOptionParseSetting == null)
+            return View(model);
+
+        var accountBalance = importedOptionParseSetting.AccountBalance;
+        var optionOrders = await GetOptionOrders(importedOptionParseSetting);
+        ViewBag.Strategy = importedOptionParseSetting.Strategy;
+        ViewBag.AccountBalance = accountBalance;
+        
         if (optionOrders != null)
         {
             var balance = 0.0m;
