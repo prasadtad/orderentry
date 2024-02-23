@@ -106,9 +106,29 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
         });
     }
 
-    public IActionResult Privacy()
+    public IActionResult Tester()
     {
         return View();
+    }
+
+    public async Task TestCharlesSchwabOrderSubmission()
+    {
+        using var charlesSchwabSession = await charlesSchwabService.GetSession();
+        await charlesSchwabSession.FillOrder(new StockOrder {
+            Ticker = "SPY",
+            Count = 10,
+            CurrentPrice = 497.21m,
+            DistanceInATRs = 0,
+            Id = Guid.NewGuid(),
+            LowPriced = false,
+            ParseSettingKey = "Live Schwab IRA Stock",
+            PositionValue = 2470m,
+            PotentialEntry = 494.17m,
+            PotentialProfit = 503.93m,
+            PotentialStop = 484.41m,
+            Strategy = Strategies.MainPullback,
+            WatchDate = DateOnly.MinValue
+        }, false);
     }
 
     public async Task<IActionResult> StockPositions()
@@ -166,18 +186,36 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
     public async Task SubmitStockOrders(List<StockOrderViewModel> model)
     {
         var importedStockParseSetting = memoryCache.Get<ParseSetting>(ImportedStockParseSettingKey);
+        if (importedStockParseSetting == null) return;
+
         var stockOrders = (await GetStockOrders(importedStockParseSetting))
                                       .Where(o => model.Exists(m => m.Id == o.Id && m.Selected));
         if (stockOrders == null) return;
 
         var submittedOrders = new List<StockOrder>();
-        foreach (var order in stockOrders)
+        if (importedStockParseSetting.Broker == Brokers.InteractiveBrokers)
         {
-            if (await interactiveBrokersService.Submit(importedStockParseSetting!.Account!, order))
+            foreach (var order in stockOrders)
             {
-                submittedOrders.Add(order);
+                if (await interactiveBrokersService.Submit(importedStockParseSetting.Account!, order))
+                {
+                    submittedOrders.Add(order);
+                }
             }
         }
+
+        if (importedStockParseSetting.Broker == Brokers.CharlesSchwab)
+        {
+            using var charlesSchwabSession = await charlesSchwabService.GetSession();
+            foreach (var order in stockOrders)
+            {
+                if (await charlesSchwabSession.FillOrder(order, true))
+                {
+                    submittedOrders.Add(order);
+                }
+            }
+        }
+
         await databaseService.Save(submittedOrders);
         memoryCache.Remove(ImportedStockParseSettingKey);
         Response.Redirect("Index");

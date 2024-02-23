@@ -408,3 +408,5 @@ clientportal
 Javaclient
 OrderEntry/Importer/mindfultradercookies.json
 OrderEntry/Importer/CharlesSchwabPositions.csv
+OrderEntry/MVC/Content/
+OrderEntry/MVC/charlesschwabcookies.json

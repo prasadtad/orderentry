@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Web;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using OrderEntry.MindfulTrader;
@@ -10,16 +11,23 @@ namespace OrderEntry.Brokerages
 {
     public class CharlesSchwabService : ICharlesSchwabService
     {
+        private readonly ILogger<CharlesSchwabService> logger;
         private readonly HttpClient httpClient;
         private readonly IOptions<CharlesSchwabSettings> options;
 
         private TDAuthResult? authResult;
         private bool isSignedIn = false;
 
-        public CharlesSchwabService(HttpClient httpClient, IOptions<CharlesSchwabSettings> options)
+        public CharlesSchwabService(ILogger<CharlesSchwabService> logger, HttpClient httpClient, IOptions<CharlesSchwabSettings> options)
 		{
+            this.logger = logger;
             this.httpClient = httpClient;
 			this.options = options;
+        }
+
+        public Task<CharlesSchwabSession> GetSession()
+        {
+            return CharlesSchwabSession.Create(logger, options);
         }
 
         public async Task<List<StockPosition>> GetStockPositions(Func<string, bool> isActivelyTrade)
@@ -216,6 +224,8 @@ namespace OrderEntry.Brokerages
 
 	public interface ICharlesSchwabService
     {
+        Task<CharlesSchwabSession> GetSession();
+
         Task<List<StockPosition>> GetStockPositions(Func<string, bool> isActivelyTrade);
         
         (string entry, string profit, string stop) GetPastableFormat(StockOrder order);
