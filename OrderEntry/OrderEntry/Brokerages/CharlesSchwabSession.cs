@@ -12,7 +12,7 @@ namespace OrderEntry.Brokerages
         private const string AuthenticatorUrl = "https://sws-gateway-nr.schwab.com/ui/host/#/authenticators";
         private const string ApprovalUrl = "https://sws-gateway-nr.schwab.com/ui/host/#/mobile_approve";
         private const string RememberUrl = "https://sws-gateway-nr.schwab.com/ui/host/#/devicetag/remember";
-        
+
         private const string StockOrderUrl = "https://client.schwab.com/app/trade/tom/#/trade";
 
         private readonly ILogger logger = logger;
@@ -24,27 +24,16 @@ namespace OrderEntry.Brokerages
 
         private bool disposed, asyncDisposed;
 
-        private static readonly string[] SafariUserAgents = [
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2.1 Safari/605.1.15"
-        ];
-
-        private static readonly string[] ChromeUserAgents = [
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.79 Safari/537.36"
-        ];
-
-        private static readonly string[] FirefoxUserAgents = [
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:101.0) Gecko/20100101 Firefox/101.0"
-        ];
+        private static readonly string UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:{0}) Gecko/20100101 Firefox/{0}";
 
         public static async Task<CharlesSchwabSession> Create(ILogger logger, IOptions<CharlesSchwabSettings> options)
-        {            
+        {
             var playwright = await Playwright.CreateAsync();
             var browser = await playwright.Firefox.LaunchAsync();
-            var random = new Random();
             var context = await browser.NewContextAsync(new BrowserNewContextOptions
             {
-                UserAgent = FirefoxUserAgents[random.Next(FirefoxUserAgents.Length)],
-                ViewportSize = new ViewportSize { Width = 1920, Height = 1080 }
+                UserAgent = string.Format(UserAgent, browser.Version),
+                ViewportSize = new ViewportSize { Width = 1920, Height = 2160 }
             });
             if (File.Exists(options.Value.CookieFilePath))
             {
@@ -63,30 +52,36 @@ namespace OrderEntry.Brokerages
 
         public async Task<bool> FillOrder(StockOrder order, bool clickSubmit)
         {
+            var random = new Random();
             await GotoPage(StockOrderUrl);
+
+            await page.Locator("#aiott_add_conditional_button").ClickAsync();            
+            await page.Locator("#mcaio-conditionalDropDown").SelectOptionAsync("conditional_triggerOCO");
             
-            await File.WriteAllTextAsync("Content/order.html", await page.Locator("html").InnerHTMLAsync());
-            await Screenshot("Content/order.jpg");
-
-            await page.Locator("#aiott_add_conditional_button").ClickAsync();
-            await page.Locator("#mcaio-conditionalDropDown").SelectOptionAsync("#mcaio-conditional_triggerOCO");
-
-            async Task EnterTicket(ILocator orderLocator)
+            async Task EnterTicket(int ticketId)
             {
+                var orderLocator = page.Locator($"[name='mcaio-Order{ticketId}']");
                 var orderId = await orderLocator.GetAttributeAsync("id");
-                await page.EvaluateAsync($"{orderId}.toggleTicket()");
+                var toggleSpan = orderLocator.Locator("#aiott_toggleticket");
+                var toggleClass = await toggleSpan.GetAttributeAsync("class");
+                if (toggleClass != null && toggleClass.Contains("sch-chevron-down"))                                    
+                    await page.EvaluateAsync($"{orderId}.toggleTicket()");
+                var tradeSymLookup = page.Locator($"mc-trade-sym-look[parent-id='{orderId}']");
+                var tradeSymbolId = await tradeSymLookup.Locator("mc-trade-symbol").GetAttributeAsync("id");
+                var tradeSymInput = tradeSymLookup.Locator("#_txtSymbol");
+                await tradeSymInput.FocusAsync();
+                await tradeSymInput.PressSequentiallyAsync(order.Ticker, new() { Delay = random.Next(50, 100)});
+                await page.EvaluateAsync($"{tradeSymbolId}.setSymbol('{order.Ticker}')");
+                await File.WriteAllTextAsync($"Content/order{ticketId}.html", await page.Locator("html").InnerHTMLAsync());
+                await Screenshot($"Content/order{ticketId}.jpg");
             }
+            
+            await EnterTicket(0);
+            await EnterTicket(1);
+            await EnterTicket(2);
 
-            var order1 = page.Locator("#[name='mcaio-Order0']");
-            await EnterTicket(order1);
-
-            var order2 = page.Locator("#[name='mcaio-Order1']");
-            await EnterTicket(order2);
-
-            var order3 = page.Locator("#[name='mcaio-Order2']");
-            await EnterTicket(order3);
-
-            if (!clickSubmit) {
+            if (!clickSubmit)
+            {
                 await File.WriteAllTextAsync("Content/order.html", await page.Locator("html").InnerHTMLAsync());
                 await Screenshot("Content/order.jpg");
                 return false;
@@ -115,7 +110,7 @@ namespace OrderEntry.Brokerages
             logger.LogInformation("On {page}", page.Url);
             if (page.Url.StartsWith(AuthenticatorUrl))
             {
-                await page.Locator("#mobile_approve").ClickAsync();                    
+                await page.Locator("#mobile_approve").ClickAsync();
                 await WaitUntilNavigatedAwayFrom(AuthenticatorUrl);
             }
 
@@ -131,16 +126,16 @@ namespace OrderEntry.Brokerages
                 await page.Locator("#remember-device-yes").ClickAsync();
                 await page.Locator("#btnContinue").ClickAsync();
                 await WaitUntilNavigatedAwayFrom(RememberUrl);
-            }                            
+            }
 
-            logger.LogInformation("On {page}", page.Url);            
+            logger.LogInformation("On {page}", page.Url);
             if (page.Url != url)
             {
                 await File.WriteAllTextAsync("Content/error.html", await page.Locator("html").InnerHTMLAsync());
                 await Screenshot("Content/error.jpg");
                 throw new Exception($"Login failed, stuck at {page.Url}");
             }
-            await File.WriteAllTextAsync(options.Value.CookieFilePath, JsonSerializer.Serialize(await context.CookiesAsync()));            
+            await File.WriteAllTextAsync(options.Value.CookieFilePath, JsonSerializer.Serialize(await context.CookiesAsync()));
         }
 
         private async Task WaitUntilNavigatedAwayFrom(string url)
@@ -149,8 +144,6 @@ namespace OrderEntry.Brokerages
             {
                 logger.LogInformation("Still on {page}", page.Url);
                 await Task.Delay(10000);
-                await File.WriteAllTextAsync("Content/waiting.html", await page.Locator("html").InnerHTMLAsync());
-                await Screenshot("Content/waiting.jpg");
             }
         }
 
