@@ -128,7 +128,7 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
             PotentialStop = 484.41m,
             Strategy = Strategies.MainPullback,
             WatchDate = DateOnly.MinValue
-        }, false);
+        });
     }
 
     public async Task<IActionResult> StockPositions()
@@ -209,7 +209,7 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
             using var charlesSchwabSession = await charlesSchwabService.GetSession();
             foreach (var order in stockOrders)
             {
-                if (await charlesSchwabSession.FillOrder(order, true))
+                if (await charlesSchwabSession.FillOrder(order))
                 {
                     submittedOrders.Add(order);
                 }

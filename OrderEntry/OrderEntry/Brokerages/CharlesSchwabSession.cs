@@ -50,44 +50,85 @@ namespace OrderEntry.Brokerages
             return await page.ScreenshotAsync(new() { Path = screenshotPath });
         }
 
-        public async Task<bool> FillOrder(StockOrder order, bool clickSubmit)
+        public async Task<bool> FillOrder(StockOrder order)
         {
-            var random = new Random();
-            await GotoPage(StockOrderUrl);
-
-            await page.Locator("#aiott_add_conditional_button").ClickAsync();            
-            await page.Locator("#mcaio-conditionalDropDown").SelectOptionAsync("conditional_triggerOCO");
-            
-            async Task EnterTicket(int ticketId)
+            try
             {
-                var orderLocator = page.Locator($"[name='mcaio-Order{ticketId}']");
-                var orderId = await orderLocator.GetAttributeAsync("id");
-                var toggleSpan = orderLocator.Locator("#aiott_toggleticket");
-                var toggleClass = await toggleSpan.GetAttributeAsync("class");
-                if (toggleClass != null && toggleClass.Contains("sch-chevron-down"))                                    
-                    await page.EvaluateAsync($"{orderId}.toggleTicket()");
-                var tradeSymLookup = page.Locator($"mc-trade-sym-look[parent-id='{orderId}']");
-                var tradeSymbolId = await tradeSymLookup.Locator("mc-trade-symbol").GetAttributeAsync("id");
-                var tradeSymInput = tradeSymLookup.Locator("#_txtSymbol");
-                await tradeSymInput.FocusAsync();
-                await tradeSymInput.PressSequentiallyAsync(order.Ticker, new() { Delay = random.Next(50, 100)});
-                await page.EvaluateAsync($"{tradeSymbolId}.setSymbol('{order.Ticker}')");
-                await File.WriteAllTextAsync($"Content/order{ticketId}.html", await page.Locator("html").InnerHTMLAsync());
-                await Screenshot($"Content/order{ticketId}.jpg");
+                await GotoPage(StockOrderUrl);
+
+                await page.Locator("#aiott_add_conditional_button").ClickAsync();
+                await page.Locator("#mcaio-conditionalDropDown").SelectOptionAsync("conditional_triggerOCO");
+
+                var ticket0OrderId = await OpenTicket(0);
+                await EnterTicker(ticket0OrderId, order.Ticker);
+                await EnterQuantity(ticket0OrderId, order.Count);
+                await EnterDetails(ticket0OrderId, order.PotentialEntry, false, false);
+
+                var ticket1OrderId = await OpenTicket(1);
+                await EnterTicker(ticket1OrderId, order.Ticker);
+                await EnterQuantity(ticket1OrderId, -order.Count);
+                await EnterDetails(ticket1OrderId, order.PotentialProfit, false, true);
+
+                var ticket2OrderId = await OpenTicket(2);
+                await EnterTicker(ticket2OrderId, order.Ticker);
+                await EnterQuantity(ticket2OrderId, -order.Count);
+                await EnterDetails(ticket2OrderId, order.PotentialStop, true, true);
+
+                await page.GetByText("Review Order").ClickAsync();
+                await page.Locator("#mtt-place-button").ClickAsync();
+
+                await Task.Delay(1000);
+                await page.EvaluateAsync($"{ticket2OrderId}.handlePlaceAnother()");
+                return true;
             }
-            
-            await EnterTicket(0);
-            await EnterTicket(1);
-            await EnterTicket(2);
-
-            if (!clickSubmit)
+            catch (Exception ex)
             {
-                await File.WriteAllTextAsync("Content/order.html", await page.Locator("html").InnerHTMLAsync());
-                await Screenshot("Content/order.jpg");
+                logger.LogCritical(ex, "Couldn't submit order");
                 return false;
             }
+        }
 
-            return false;
+        private async Task<string> OpenTicket(int ticketId)
+        {
+            var orderLocator = page.Locator($"[name='mcaio-Order{ticketId}']");
+            var orderId = await orderLocator.GetAttributeAsync("id");
+            var toggleSpan = orderLocator.Locator("#aiott_toggleticket");
+            var toggleClass = await toggleSpan.GetAttributeAsync("class");
+            if (toggleClass != null && toggleClass.Contains("sch-chevron-down"))
+                await page.EvaluateAsync($"{orderId}.toggleTicket()");
+            return orderId!;
+        }
+
+        private async Task EnterTicker(string orderId, string ticker)
+        {
+            var ticketSymLocator = page.Locator($"mc-trade-sym-look[parent-id='{orderId}']");
+            var tradeSymbolId = await ticketSymLocator.Locator("mc-trade-symbol").GetAttributeAsync("id");
+
+            var tradeSymInput = ticketSymLocator.Locator("#_txtSymbol");
+            await tradeSymInput.FocusAsync();
+            await tradeSymInput.PressSequentiallyAsync(ticker, new() { Delay = 50 });
+
+            await page.EvaluateAsync($"{tradeSymbolId}.setSymbol('{ticker}')");
+        }
+
+        private async Task EnterQuantity(string orderId, int quantity)
+        {
+            var orderControlLocator = page.Locator($"mc-trade-order-control[parent-id='{orderId}']");
+            await orderControlLocator.Locator("#_action").SelectOptionAsync(new SelectOptionValue { Label = quantity > 0 ? "Buy" : "Sell" });
+            quantity = Math.Abs(quantity);
+
+            await orderControlLocator.Locator("#_txtQty").Locator($"input").FillAsync(quantity.ToString());
+        }
+
+        private async Task EnterDetails(string orderId, decimal price, bool stopLoss, bool gtc)
+        {
+            var orderControlLocator = page.Locator($"mc-trade-order-control[parent-id='{orderId}']");
+            var type = stopLoss ? "Stop market" : "Limit";
+            await orderControlLocator.Locator("#mcaio-orderType-container").Locator("select").SelectOptionAsync(new SelectOptionValue { Label = type });
+            await orderControlLocator.Locator(stopLoss ? "#_txtStopPrice" : "#_txtLimitPrice").Locator("input").FillAsync(price.ToString());
+            var timingLocator = orderControlLocator.Locator("#_timing");
+            if (await timingLocator.IsEnabledAsync())
+                await timingLocator.SelectOptionAsync(new SelectOptionValue { Label = gtc ? "GTC (Good till canceled)" : "Day" });
         }
 
         private async Task GotoPage(string url)
