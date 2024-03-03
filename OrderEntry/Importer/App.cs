@@ -19,9 +19,9 @@ namespace Importer
             await SyncStockPositions();
             await SyncOrders();
         }
-        
+
         public async Task SyncStockPositions()
-        {            
+        {
             await SyncStockPositions(Brokers.CharlesSchwab);
             await SyncStockPositions(Brokers.InteractiveBrokers);
         }
@@ -29,10 +29,12 @@ namespace Importer
         private async Task SyncStockPositions(Brokers broker)
         {
             var dbPositions = await databaseService.GetStockPositions(broker);
-            
+
             logger.LogInformation("{count} {broker} positions in database", dbPositions.Count, broker);
 
-            var positions = broker == Brokers.CharlesSchwab ? await charlesSchwabService.GetStockPositions((ticker) => dbPositions                .SingleOrDefault(p => p.Ticker == ticker)                    ?.ActivelyTrade ?? true)
+            logger.LogInformation("Opening charles schwab session");
+            using var session = await charlesSchwabService.GetSession();
+            var positions = broker == Brokers.CharlesSchwab ? await session.GetStockPositions((ticker) => dbPositions.SingleOrDefault(p => p.Ticker == ticker)?.ActivelyTrade ?? true)
             : await interactiveBrokersService.GetStockPositions((accountId, ticker) => dbPositions
                 .SingleOrDefault(p => p.AccountId == accountId && p.Ticker == ticker)
                     ?.ActivelyTrade ?? true);
@@ -59,10 +61,10 @@ namespace Importer
             logger.LogInformation("Deleted {count} {broker} {positions}", deletedCount, broker, deletes);
 
             await databaseService.Insert(inserts);
-            logger.LogInformation("Inserted {count} {broker} {positions}", inserts.Count,broker, inserts);
+            logger.LogInformation("Inserted {count} {broker} {positions}", inserts.Count, broker, inserts);
 
             await databaseService.Update(updates);
-            logger.LogInformation("Updated {count} {broker} {positions}", updates.Count,broker, updates);
+            logger.LogInformation("Updated {count} {broker} {positions}", updates.Count, broker, updates);
         }
 
         private async Task SyncOrders()

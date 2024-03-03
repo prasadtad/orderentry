@@ -12,8 +12,8 @@ namespace OrderEntry.Brokerages
         private const string AuthenticatorUrl = "https://sws-gateway-nr.schwab.com/ui/host/#/authenticators";
         private const string ApprovalUrl = "https://sws-gateway-nr.schwab.com/ui/host/#/mobile_approve";
         private const string RememberUrl = "https://sws-gateway-nr.schwab.com/ui/host/#/devicetag/remember";
-
         private const string StockOrderUrl = "https://client.schwab.com/app/trade/tom/#/trade";
+        private const string PositionsUrl = "https://client.schwab.com/app/accounts/positions/#/";
 
         private readonly ILogger logger = logger;
         private readonly IOptions<CharlesSchwabSettings> options = options;
@@ -48,6 +48,54 @@ namespace OrderEntry.Brokerages
         public async Task<byte[]> Screenshot(string screenshotPath)
         {
             return await page.ScreenshotAsync(new() { Path = screenshotPath });
+        }
+
+        public async Task<List<StockPosition>> GetStockPositions(Func<string, bool> isActivelyTrade)
+        {
+            await GotoPage(PositionsUrl);
+
+            await page.Locator("#quantity-tableHeader-0").WaitForAsync();
+            await page.Locator("#costPerShare-tableHeader-1").WaitForAsync();
+
+            var positions = new List<StockPosition>();
+
+            foreach (var row in await page.Locator("#holdingsAccount_31716198").Locator("tr").AllAsync())
+            {
+                var ticker = await row.GetAttributeAsync("data-symbol");
+                if (string.IsNullOrWhiteSpace(ticker)) continue;
+
+                string? firstRowValue = null, secondRowValue = null;
+                foreach (var rowCell in await row.Locator("app-dynamic-column").Locator("span").AllAsync())
+                {
+                    var rowValue = await rowCell.InnerTextAsync();
+                    if (string.IsNullOrWhiteSpace(rowValue)) continue;
+                    if (firstRowValue == null)
+                    {
+                        firstRowValue = rowValue.Trim();
+                        continue;
+                    }
+                    if (secondRowValue == null)
+                    {
+                        secondRowValue = rowValue.Trim();
+                        if (secondRowValue.StartsWith("$"))
+                            secondRowValue = secondRowValue[1..];
+                        continue;
+                    }
+                }
+                if (firstRowValue == null || secondRowValue == null)
+                    throw new Exception($"Unable to determine quantity or position for {ticker}");
+                positions.Add(new StockPosition
+                {
+                    Broker = Brokers.CharlesSchwab,
+                    AccountId = "31716198SCHW",
+                    Ticker = ticker,
+                    Count = decimal.Parse(firstRowValue),
+                    AverageCost = decimal.Parse(secondRowValue),
+                    ActivelyTrade = isActivelyTrade(ticker)
+                });
+            }
+
+            return positions;
         }
 
         public async Task<bool> FillOrder(StockOrder order)
