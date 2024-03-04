@@ -124,9 +124,9 @@ namespace OrderEntry.Brokerages
 
                 await page.GetByText("Review Order").ClickAsync();
                 await page.Locator("#mtt-place-button").ClickAsync();
-
+                
+                await page.GetByText("Place Another Order").ClickAsync();
                 await Task.Delay(1000);
-                await page.EvaluateAsync($"{ticket2OrderId}.handlePlaceAnother()");
                 return true;
             }
             catch (Exception ex)
