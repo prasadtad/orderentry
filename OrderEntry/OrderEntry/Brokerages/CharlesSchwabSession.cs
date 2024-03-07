@@ -8,7 +8,7 @@ namespace OrderEntry.Brokerages
 {
     public sealed class CharlesSchwabSession(ILogger logger, IOptions<CharlesSchwabSettings> options, IPlaywright playwright, IBrowser browser, IBrowserContext context, IPage page) : IDisposable, IAsyncDisposable
     {
-        private const string LoginUrl = "https://client.schwab.com/Login/SignOn/CustomerCenterLogin.aspx";
+        private const string LoginUrl = "https://client.schwab.com/Areas/Access/Login";
         private const string AuthenticatorUrl = "https://sws-gateway-nr.schwab.com/ui/host/#/authenticators";
         private const string ApprovalUrl = "https://sws-gateway-nr.schwab.com/ui/host/#/mobile_approve";
         private const string RememberUrl = "https://sws-gateway-nr.schwab.com/ui/host/#/devicetag/remember";
@@ -185,10 +185,10 @@ namespace OrderEntry.Brokerages
             await page.GotoAsync(url);
             if (page.Url == url) return;
 
-            logger.LogInformation("On {page}", page.Url);
+            logger.LogInformation("On {page}", page.Url);            
             if (page.Url.StartsWith(LoginUrl))
             {
-                var frame = page.FrameLocator("#lmsSecondaryLogin");
+                var frame = page.FrameLocator("#lmsIframe");
                 await frame.Locator("#loginIdInput").FillAsync(options.Value.Username);
                 await frame.GetByPlaceholder("Password").FillAsync(options.Value.Password);
                 await frame.GetByRole(AriaRole.Checkbox, new() { Name = "Remember Login ID" }).SetCheckedAsync(true);
@@ -220,8 +220,6 @@ namespace OrderEntry.Brokerages
             logger.LogInformation("On {page}", page.Url);
             if (page.Url != url)
             {
-                await File.WriteAllTextAsync("Content/error.html", await page.Locator("html").InnerHTMLAsync());
-                await Screenshot("Content/error.jpg");
                 throw new Exception($"Login failed, stuck at {page.Url}");
             }
             await File.WriteAllTextAsync(options.Value.CookieFilePath, JsonSerializer.Serialize(await context.CookiesAsync()));
