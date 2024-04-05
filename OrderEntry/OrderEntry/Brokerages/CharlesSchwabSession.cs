@@ -52,50 +52,60 @@ namespace OrderEntry.Brokerages
 
         public async Task<List<StockPosition>> GetStockPositions(Func<string, bool> isActivelyTrade)
         {
-            await GotoPage(PositionsUrl);
-
-            await page.Locator("#quantity-tableHeader-0").WaitForAsync();
-            await page.Locator("#costPerShare-tableHeader-1").WaitForAsync();
-
-            var positions = new List<StockPosition>();
-
-            foreach (var row in await page.Locator("#holdingsAccount_31716198").Locator("tr").AllAsync())
+            try
             {
-                var ticker = await row.GetAttributeAsync("data-symbol");
-                if (string.IsNullOrWhiteSpace(ticker)) continue;
+                await GotoPage(PositionsUrl);
 
-                string? firstRowValue = null, secondRowValue = null;
-                foreach (var rowCell in await row.Locator("app-dynamic-column").Locator("span").AllAsync())
+                await page.Locator("#quantity-tableHeader-0").WaitForAsync();
+                await page.Locator("#costPerShare-tableHeader-1").WaitForAsync();
+
+                var positions = new List<StockPosition>();
+
+                foreach (var row in await page.Locator("#holdingsAccount_31716198").Locator("tr").AllAsync())
                 {
-                    var rowValue = await rowCell.InnerTextAsync();
-                    if (string.IsNullOrWhiteSpace(rowValue)) continue;
-                    if (firstRowValue == null)
+                    var ticker = await row.GetAttributeAsync("data-symbol");
+                    if (string.IsNullOrWhiteSpace(ticker)) continue;
+
+                    string? firstRowValue = null, secondRowValue = null;
+                    foreach (var rowCell in await row.Locator("app-dynamic-column").Locator("span").AllAsync())
                     {
-                        firstRowValue = rowValue.Trim();
-                        continue;
+                        var rowValue = await rowCell.InnerTextAsync();
+                        if (string.IsNullOrWhiteSpace(rowValue)) continue;
+                        if (firstRowValue == null)
+                        {
+                            firstRowValue = rowValue.Trim();
+                            continue;
+                        }
+                        if (secondRowValue == null)
+                        {
+                            secondRowValue = rowValue.Trim();
+                            if (secondRowValue.StartsWith("$"))
+                                secondRowValue = secondRowValue[1..];
+                            continue;
+                        }
                     }
-                    if (secondRowValue == null)
+                    if (firstRowValue == null || secondRowValue == null)
+                        throw new Exception($"Unable to determine quantity or position for {ticker}");
+                    positions.Add(new StockPosition
                     {
-                        secondRowValue = rowValue.Trim();
-                        if (secondRowValue.StartsWith("$"))
-                            secondRowValue = secondRowValue[1..];
-                        continue;
-                    }
+                        Broker = Brokers.CharlesSchwab,
+                        AccountId = "31716198SCHW",
+                        Ticker = ticker,
+                        Count = decimal.Parse(firstRowValue),
+                        AverageCost = decimal.Parse(secondRowValue),
+                        ActivelyTrade = isActivelyTrade(ticker)
+                    });
                 }
-                if (firstRowValue == null || secondRowValue == null)
-                    throw new Exception($"Unable to determine quantity or position for {ticker}");
-                positions.Add(new StockPosition
-                {
-                    Broker = Brokers.CharlesSchwab,
-                    AccountId = "31716198SCHW",
-                    Ticker = ticker,
-                    Count = decimal.Parse(firstRowValue),
-                    AverageCost = decimal.Parse(secondRowValue),
-                    ActivelyTrade = isActivelyTrade(ticker)
-                });
-            }
 
-            return positions;
+                return positions;
+            }
+            catch (Exception ex)
+            {
+                await File.WriteAllTextAsync("Content/error.html", await page.InnerHTMLAsync("html"));
+                await Screenshot("Content/error.jpg");
+                logger.LogCritical(ex, "Couldn't get positions");
+                throw;
+            }
         }
 
         public async Task<bool> FillOrder(StockOrder order)
@@ -124,7 +134,7 @@ namespace OrderEntry.Brokerages
 
                 await page.GetByText("Review Order").ClickAsync();
                 await page.Locator("#mtt-place-button").ClickAsync();
-                
+
                 await page.GetByText("Place Another Order").ClickAsync();
                 await Task.Delay(1000);
                 return true;
@@ -187,7 +197,7 @@ namespace OrderEntry.Brokerages
             await page.GotoAsync(url);
             if (page.Url == url) return;
 
-            logger.LogInformation("On {page}", page.Url);            
+            logger.LogInformation("On {page}", page.Url);
             if (page.Url.StartsWith(LoginUrl))
             {
                 var frame = page.FrameLocator("#lmsIframe");

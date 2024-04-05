@@ -406,6 +406,7 @@ ASALocalRun/
 
 clientportal
 Javaclient
+OrderEntry/Importer/Content/
 OrderEntry/Importer/mindfultradercookies.json
 OrderEntry/Importer/CharlesSchwabPositions.csv
 OrderEntry/Importer/charlesschwabcookies.json
