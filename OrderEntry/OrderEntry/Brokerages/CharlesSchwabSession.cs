@@ -12,7 +12,7 @@ namespace OrderEntry.Brokerages
         private const string AuthenticatorUrl = "https://sws-gateway-nr.schwab.com/ui/host/#/authenticators";
         private const string ApprovalUrl = "https://sws-gateway-nr.schwab.com/ui/host/#/mobile_approve";
         private const string RememberUrl = "https://sws-gateway-nr.schwab.com/ui/host/#/devicetag/remember";
-        private const string StockOrderUrl = "https://client.schwab.com/app/trade/tom?Strategy=S";
+        private const string StockOrderUrl = "https://client.schwab.com/app/trade/tom/trade?Strategy=S";
         private const string PositionsUrl = "https://client.schwab.com/app/accounts/positions/#/";
 
         private readonly ILogger logger = logger;
