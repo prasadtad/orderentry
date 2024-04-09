@@ -412,3 +412,7 @@ OrderEntry/Importer/CharlesSchwabPositions.csv
 OrderEntry/Importer/charlesschwabcookies.json
 OrderEntry/MVC/Content/
 OrderEntry/MVC/charlesschwabcookies.json
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

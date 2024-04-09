@@ -1,0 +1,14 @@
+{
+  "name": "orderentry",
+  "version": "1.0.0",
+  "description": "Enter daily orders before market open for swing trades",
+  "main": "index.js",
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.42.1",
+    "@types/node": "^20.11.30"
+  }
+}
