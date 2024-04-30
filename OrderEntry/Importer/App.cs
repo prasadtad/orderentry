@@ -33,7 +33,7 @@ namespace Importer
             logger.LogInformation("{count} {broker} positions in database", dbPositions.Count, broker);
 
             logger.LogInformation("Opening charles schwab session");
-            using var session = await charlesSchwabService.GetSession();
+            await using var session = await charlesSchwabService.GetSession();
             var positions = broker == Brokers.CharlesSchwab ? await session.GetStockPositions((ticker) => dbPositions.SingleOrDefault(p => p.Ticker == ticker)?.ActivelyTrade ?? true)
             : await interactiveBrokersService.GetStockPositions((accountId, ticker) => dbPositions
                 .SingleOrDefault(p => p.AccountId == accountId && p.Ticker == ticker)
@@ -79,7 +79,7 @@ namespace Importer
             logger.LogInformation("Deleted {count} option orders before {watchDate}", deletedOptionOrderCount, earliestDeleteDate);
 
             logger.LogInformation("Opening mindful trader session");
-            using var session = await mindfulTraderService.GetSession();
+            await using var session = await mindfulTraderService.GetSession();
 
             var parseSettings = await databaseService.GetParseSettings();
             if (parseSettings.Count == 0)

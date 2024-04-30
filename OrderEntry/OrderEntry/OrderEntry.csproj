@@ -8,12 +8,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Brokers\**" />
+    <EmbeddedResource Remove="Brokers\**" />
+    <None Remove="Brokers\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="Brokers\" />
     <None Remove="MindfulTrader\" />
     <None Remove="Database\" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="Brokers\" />
     <Folder Include="MindfulTrader\" />
     <Folder Include="Database\" />
   </ItemGroup>

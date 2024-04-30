@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
@@ -41,76 +43,43 @@ namespace OrderEntry.MindfulTrader
 
         public async Task<List<StockOrder>> GetStockOrders(string parseSettingKey, Strategies strategy, decimal accountBalance)
         {
-            await GotoPage(ParseTypes.Watchlist);
-            
-            await page.Locator("#account_balance").FillAsync(accountBalance.ToString());
-            await page.Locator("#buying_powerW").SetCheckedAsync(false);
-            await page.Locator("#filter_strategy").SelectOptionAsync(new[] { strategy == Strategies.MainPullback ? "Main Pullback" : strategy == Strategies.DoubleDown ? "Double Down" : throw new NotImplementedException() });
-
-            var viewMoreClass = "load_more_1";
-            await page.Locator($"[class='{viewMoreClass}']").ClickAsync();
-
-            var list = new List<StockOrder>();
-            foreach (var row in await page.Locator("#favorite_stocks").Locator("tr").AllAsync())
-            {
-                if (((await row.GetAttributeAsync("class")) ?? string.Empty).Contains("filtered-out"))
-                    continue;
-                var rowText = await row.InnerTextAsync();
-                if (rowText.Contains("Watch Date")) continue;
-                var order = ReadStockOrder(parseSettingKey, rowText.ReplaceLineEndings(string.Empty), false);
-                if (order != null) list.Add(order);
-            }
-
-            return list;
+            return await GetWatchlistOrders<StockOrder>(parseSettingKey, strategy, accountBalance, false);
         }
 
         public async Task<List<OptionOrder>> GetOptionOrders(string parseSettingKey, Strategies strategy, decimal accountBalance)
         {
-            await GotoPage(ParseTypes.Watchlist);
-
-            await page.Locator("#account_balance").FillAsync(accountBalance.ToString());
-            await page.Locator("#buying_powerW").SetCheckedAsync(false);
-            await page.Locator("#filter_strategy").SelectOptionAsync(new[] { strategy == Strategies.MainPullback ? "Main Pullback" : strategy == Strategies.DoubleDown ? "Double Down" : throw new NotImplementedException() });
-
-            var viewMoreClass = "load_more_2";
-            await page.Locator($"[class='{viewMoreClass}']").ClickAsync();
-
-            var list = new List<OptionOrder>();
-
-            foreach (var row in await page.Locator("#options").Locator("tr").AllAsync())
-            {
-                if (((await row.GetAttributeAsync("class")) ?? string.Empty).Contains("filtered-out"))
-                    continue;
-                var rowText = await row.InnerTextAsync();
-                if (rowText.Contains("Watch Date")) continue;
-                var order = ReadOptionOrder(parseSettingKey, rowText.ReplaceLineEndings(string.Empty));
-                if (order != null) list.Add(order);
-            }
-
-            return list;
+            return await GetWatchlistOrders<OptionOrder>(parseSettingKey, strategy, accountBalance);
         }
 
         public async Task<List<StockOrder>> GetLowPricedStockOrders(string parseSettingKey, Strategies strategy, decimal accountBalance)
         {
-            await GotoPage(ParseTypes.Watchlist);
+            return await GetWatchlistOrders<StockOrder>(parseSettingKey, strategy, accountBalance, true);
+        }
 
-            await page.Locator("#account_balance").FillAsync(accountBalance.ToString());
+        private async Task<List<T>> GetWatchlistOrders<T>(string parseSettingKey, Strategies strategy, decimal accountBalance, bool? lowPriced = null) where T: class
+        {
+            await GotoPage(ParseTypes.Watchlist);
+            
             await page.Locator("#buying_powerW").SetCheckedAsync(false);
             await page.Locator("#filter_strategy").SelectOptionAsync(new[] { strategy == Strategies.MainPullback ? "Main Pullback" : strategy == Strategies.DoubleDown ? "Double Down" : throw new NotImplementedException() });
+            await page.Locator("#account_balance").PressSequentiallyAsync(accountBalance.ToString(CultureInfo.CurrentCulture));
+            await page.DispatchEventAsync("#account_balance", "change");
 
-            var viewMoreClass = "load_more_3";
-            await page.Locator($"[class='{viewMoreClass}']").ClickAsync();
-
-            var list = new List<StockOrder>();
-
-            foreach (var row in await page.Locator("#low_price_stocks").Locator("tr").AllAsync())
+            var viewMoreClass = typeof(T) == typeof(StockOrder) ? (lowPriced!.Value ? "load_more_3" : "load_more_1") : "load_more_2";
+            var viewMoreSelector = $"[class='{viewMoreClass}']";
+            if (await page.IsVisibleAsync(viewMoreSelector))
+                await page.Locator(viewMoreSelector).ClickAsync();
+            
+            var list = new List<T>();
+            var tableSelector = typeof(T) == typeof(StockOrder) ? (lowPriced!.Value ? "#low_price_stocks" : "#favorite_stocks") : "#options";
+            foreach (var row in await page.Locator(tableSelector).Locator("tr").AllAsync())
             {
                 if (((await row.GetAttributeAsync("class")) ?? string.Empty).Contains("filtered-out"))
                     continue;
                 var rowText = await row.InnerTextAsync();
                 if (rowText.Contains("Watch Date")) continue;
-                var order = ReadStockOrder(parseSettingKey, rowText.ReplaceLineEndings(string.Empty), true);
-                if (order != null) list.Add(order);
+                var order = ReadWatchlistOrder<T>(parseSettingKey, rowText.ReplaceLineEndings(string.Empty), lowPriced);
+                list.Add(order);
             }
 
             return list;
@@ -119,6 +88,10 @@ namespace OrderEntry.MindfulTrader
         private async Task GotoPage(ParseTypes parseTypes)
         {
             var url = GetUrl(parseTypes);
+
+            if (page.Url == url) // Workaround as it seems to be broken when on the same page
+                await page.GotoAsync("https://www.mindfultrader.com");
+
             await page.GotoAsync(url);
 
             if (page.Url != url)
@@ -132,6 +105,11 @@ namespace OrderEntry.MindfulTrader
 
             if (page.Url != url)
                 throw new Exception("Login Failed");
+        }
+        
+        private static T ReadWatchlistOrder<T>(string parseSettingKey, string line, bool? lowPriced) where T: class
+        {
+            return typeof(T) == typeof(StockOrder) ? (ReadStockOrder(parseSettingKey, line, lowPriced!.Value) as T)! : (ReadOptionOrder(parseSettingKey, line) as T)!;
         }
 
         private static OptionOrder ReadOptionOrder(string parseSettingKey, string line)
