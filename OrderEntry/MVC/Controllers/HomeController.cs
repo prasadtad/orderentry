@@ -113,7 +113,7 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
 
     public async Task TestCharlesSchwabOrderSubmission()
     {
-        using var charlesSchwabSession = await charlesSchwabService.GetSession();
+        await using var charlesSchwabSession = await charlesSchwabService.GetSession();
         await charlesSchwabSession.FillOrder(new StockOrder {
             Ticker = "SPY",
             Count = 10,
@@ -206,9 +206,9 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
 
         if (importedStockParseSetting.Broker == Brokers.CharlesSchwab)
         {
-            using var charlesSchwabSession = await charlesSchwabService.GetSession();
             foreach (var order in stockOrders)
             {
+                await using var charlesSchwabSession = await charlesSchwabService.GetSession();
                 if (await charlesSchwabSession.FillOrder(order))
                 {
                     submittedOrders.Add(order);

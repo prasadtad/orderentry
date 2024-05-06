@@ -174,17 +174,19 @@ namespace OrderEntry.Brokerages
         private async Task EnterQuantity(string orderId, int quantity)
         {
             var orderControlLocator = page.Locator($"mc-trade-order-control[parent-id='{orderId}']");
-            await orderControlLocator.Locator("#_action").SelectOptionAsync(new SelectOptionValue { Label = quantity > 0 ? "Buy" : "Sell" });
-            quantity = Math.Abs(quantity);
-
-            await orderControlLocator.Locator("#_txtQty").Locator($"input").FillAsync(quantity.ToString());
+            var actionLocator = orderControlLocator.Locator("select[name='action']");
+            await actionLocator.ClickAsync();
+            await actionLocator.SelectOptionAsync(new SelectOptionValue { Label = quantity > 0 ? "Buy" : "Sell" });
+            await orderControlLocator.Locator("#_txtQty").Locator($"input").FillAsync(Math.Abs(quantity).ToString());
         }
 
         private async Task EnterDetails(string orderId, decimal price, bool stopLoss, bool gtc)
         {
             var orderControlLocator = page.Locator($"mc-trade-order-control[parent-id='{orderId}']");
             var type = stopLoss ? "Stop market" : "Limit";
-            await orderControlLocator.Locator("#mcaio-orderType-container").Locator("select").SelectOptionAsync(new SelectOptionValue { Label = type });
+            var typeLocator = orderControlLocator.Locator("#mcaio-orderType-container").Locator("select");
+            await typeLocator.ClickAsync();
+            await typeLocator.SelectOptionAsync(new SelectOptionValue { Label = type });
             await orderControlLocator.Locator(stopLoss ? "#_txtStopPrice" : "#_txtLimitPrice").Locator("input").FillAsync(price.ToString());
             var timingLocator = orderControlLocator.Locator("#_timing");
             if (await timingLocator.IsEnabledAsync())
