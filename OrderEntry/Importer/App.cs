@@ -78,9 +78,6 @@ namespace Importer
             var deletedOptionOrderCount = await databaseService.DeleteOptionOrders(earliestDeleteDate);
             logger.LogInformation("Deleted {count} option orders before {watchDate}", deletedOptionOrderCount, earliestDeleteDate);
 
-            logger.LogInformation("Opening mindful trader session");
-            await using var session = await mindfulTraderService.GetSession();
-
             var parseSettings = await databaseService.GetParseSettings();
             if (parseSettings.Count == 0)
                 logger.LogWarning("No active parse settings found in database");
@@ -100,17 +97,20 @@ namespace Importer
                 logger.LogInformation("Getting orders for {parseSetting}", parseSetting);
                 if (parseSetting.Mode == Modes.Stock)
                 {
-                    await SyncStockOrders(session, parseSetting);
+                    await SyncStockOrders(parseSetting);
                 }
                 else if (parseSetting.Mode == Modes.Option)
                 {
-                    await SyncOptionOrders(session, parseSetting);
+                    await SyncOptionOrders(parseSetting);
                 }
             }
         }
 
-        private async Task SyncStockOrders(MindfulTraderSession session, ParseSetting parseSetting)
+        private async Task SyncStockOrders(ParseSetting parseSetting)
         {
+            logger.LogInformation("Opening mindful trader session");
+            await using var session = await mindfulTraderService.GetSession();
+
             var watchDate = DateUtils.TodayEST;
 
             if (await databaseService.HasStockOrders(parseSetting.Key, watchDate))
@@ -125,8 +125,11 @@ namespace Importer
             await databaseService.Save(validOrders);
         }
 
-        private async Task SyncOptionOrders(MindfulTraderSession session, ParseSetting parseSetting)
+        private async Task SyncOptionOrders(ParseSetting parseSetting)
         {
+            logger.LogInformation("Opening mindful trader session");
+            await using var session = await mindfulTraderService.GetSession();
+
             var watchDate = DateUtils.TodayEST;
 
             if (await databaseService.HasOptionOrders(parseSetting.Key, watchDate))
