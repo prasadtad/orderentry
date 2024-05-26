@@ -15,6 +15,8 @@ namespace OrderEntry.Brokerages
         private readonly HttpClient httpClient;
         private readonly IOptions<CharlesSchwabSettings> options;
 
+        private const string PositionsFileName = "positions.csv";
+
         private TDAuthResult? authResult;
         private bool isSignedIn = false;
 
@@ -35,7 +37,7 @@ namespace OrderEntry.Brokerages
             var stockPositions = new List<StockPosition>();
             var readPositions = false;
             string? accountId = null;
-            foreach (var line in await File.ReadAllLinesAsync(options.Value.PositionsFilePath))
+            foreach (var line in await File.ReadAllLinesAsync(Path.Combine(options.Value.DataPath, PositionsFileName)))
             {
                 if (accountId == null)
                 {
@@ -44,7 +46,7 @@ namespace OrderEntry.Brokerages
 
                     var statementTimeEST = DateTime.ParseExact(line[(line.IndexOf(" on ") + " on ".Length)..], "M/d/yy HH:mm:ss", null);
                     if (DateOnly.FromDateTime(statementTimeEST) != DateUtils.TodayEST)
-                        throw new Exception($"{options.Value.PositionsFilePath} statement date is {DateOnly.FromDateTime(statementTimeEST)}, not {DateUtils.TodayEST}");
+                        throw new Exception($"{Path.Combine(options.Value.DataPath, PositionsFileName)} statement date is {DateOnly.FromDateTime(statementTimeEST)}, not {DateUtils.TodayEST}");
                     continue;
                 }
                 if (line.StartsWith("Instrument,Description,Qty,Days,Trade Price,Mark,Mrk Chng,P/L Open,Net Liq,P/L Open,P/L Day,BP Effect"))

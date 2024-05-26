@@ -6,7 +6,7 @@
 
         public required string Password { get; set; }
 
-        public required string CookieFilePath { get; set; }
+        public required string DataPath { get; set; }
     }
 
     public class DatabaseSettings
@@ -26,9 +26,7 @@
     {
         public required string ConsumerKey { get; set; }
 
-        public required string CookieFilePath { get; set; }
-
-        public required string PositionsFilePath { get; set; }
+        public required string DataPath { get; set; }
 
         public required string Username { get; set; }
 

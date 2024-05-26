@@ -6,6 +6,8 @@ namespace MVC.Models
 
         public string? Account { get; set; }
 
+        public required decimal AccountBalance { get;set; }
+
         public required string Ticker { get; set; }
 
         public required decimal Count { get; set; }

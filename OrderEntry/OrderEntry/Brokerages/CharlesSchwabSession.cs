@@ -15,6 +15,8 @@ namespace OrderEntry.Brokerages
         private const string StockOrderUrl = "https://client.schwab.com/app/trade/tom/trade?Strategy=S";
         private const string PositionsUrl = "https://client.schwab.com/app/accounts/positions/#/";
 
+        private const string CookieFileName = "charlesschwabcookies.json";
+
         private readonly ILogger logger = logger;
         private readonly IOptions<CharlesSchwabSettings> options = options;
         private readonly IPlaywright playwright = playwright;
@@ -35,9 +37,9 @@ namespace OrderEntry.Brokerages
                 UserAgent = string.Format(UserAgent, browser.Version),
                 ViewportSize = new ViewportSize { Width = 1920, Height = 2160 }
             });
-            if (File.Exists(options.Value.CookieFilePath))
+            if (File.Exists(Path.Combine(options.Value.DataPath, CookieFileName)))
             {
-                var cookieJson = await File.ReadAllTextAsync(options.Value.CookieFilePath);
+                var cookieJson = await File.ReadAllTextAsync(Path.Combine(options.Value.DataPath, CookieFileName));
                 var cookies = JsonSerializer.Deserialize<List<Cookie>>(cookieJson);
                 await context.AddCookiesAsync(cookies!);
             }
@@ -50,11 +52,15 @@ namespace OrderEntry.Brokerages
             return await page.ScreenshotAsync(new() { Path = screenshotPath });
         }
 
-        public async Task<List<StockPosition>> GetStockPositions(Func<string, bool> isActivelyTrade)
+        public async Task<(decimal AccountValue, List<StockPosition> Positions)> GetStockPositions(Func<string, bool> isActivelyTrade)
         {
             try
             {
                 await GotoPage(PositionsUrl);
+                
+                var accountValueText = await page.Locator("[sdps-id=\"account-value-total\"]").Locator("sdps-number").InnerTextAsync();                
+                if (!decimal.TryParse(accountValueText.TrimStart('$'), out var accountValue)) 
+                    throw new Exception($"Cannot parse account value from {accountValueText}");
 
                 await page.Locator("#quantity-tableHeader-0").WaitForAsync();
                 await page.Locator("#costPerShare-tableHeader-1").WaitForAsync();
@@ -89,7 +95,7 @@ namespace OrderEntry.Brokerages
                     positions.Add(new StockPosition
                     {
                         Broker = Brokers.CharlesSchwab,
-                        AccountId = "31716198SCHW",
+                        AccountId = "31716198SCHW",                        
                         Ticker = ticker,
                         Count = decimal.Parse(firstRowValue),
                         AverageCost = decimal.Parse(secondRowValue),
@@ -97,12 +103,11 @@ namespace OrderEntry.Brokerages
                     });
                 }
 
-                return positions;
+                return (accountValue, positions);
             }
             catch (Exception ex)
             {
-                await File.WriteAllTextAsync("Content/error.html", await page.InnerHTMLAsync("html"));
-                await Screenshot("Content/error.jpg");
+                await CaptureContent("charlesschwaberror");
                 logger.LogCritical(ex, "Couldn't get positions");
                 throw;
             }
@@ -141,9 +146,8 @@ namespace OrderEntry.Brokerages
             }
             catch (Exception ex)
             {
-                await File.WriteAllTextAsync("Content/error.html", await page.InnerHTMLAsync("html"));
-                await Screenshot("Content/error.jpg");
-                logger.LogCritical(ex, "Couldn't submit order");
+                await CaptureContent("charlesschwaberror");
+                logger.LogCritical(ex, "Couldn't submit {order}", order);
                 return false;
             }
         }
@@ -234,7 +238,7 @@ namespace OrderEntry.Brokerages
             {
                 throw new Exception($"Login failed, stuck at {page.Url}");
             }
-            await File.WriteAllTextAsync(options.Value.CookieFilePath, JsonSerializer.Serialize(await context.CookiesAsync()));
+            await File.WriteAllTextAsync(Path.Combine(options.Value.DataPath, CookieFileName), JsonSerializer.Serialize(await context.CookiesAsync()));
         }
 
         private async Task WaitUntilNavigatedAwayFrom(string url)
@@ -244,6 +248,12 @@ namespace OrderEntry.Brokerages
                 logger.LogInformation("Still on {page}", page.Url);
                 await Task.Delay(10000);
             }
+        }
+
+        private async Task CaptureContent(string filenameWithoutExtension)
+        {
+            await File.WriteAllTextAsync(Path.Combine(options.Value.DataPath, $"{filenameWithoutExtension}.html"), await page.InnerHTMLAsync("html"));
+            await Screenshot(Path.Combine(options.Value.DataPath, $"{filenameWithoutExtension}.jpg"));
         }
 
         public void Dispose()

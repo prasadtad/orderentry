@@ -8,6 +8,8 @@ namespace OrderEntry.MindfulTrader
     {
         private static readonly char[] separator = [' ', '\t'];
 
+        private const string CookieFileName = "mindfultradercookies.json";
+
         private readonly IOptions<MindfulTraderSettings> options = options;
         private readonly IPlaywright playwright = playwright;
         private readonly IBrowser browser = browser;
@@ -24,9 +26,9 @@ namespace OrderEntry.MindfulTrader
             {
                 ViewportSize = new ViewportSize { Width = 2560, Height = 4096 }
             });
-            if (File.Exists(options.Value.CookieFilePath))
+            if (File.Exists(Path.Combine(options.Value.DataPath, CookieFileName)))
             {
-                var cookieJson = await File.ReadAllTextAsync(options.Value.CookieFilePath);
+                var cookieJson = await File.ReadAllTextAsync(Path.Combine(options.Value.DataPath, CookieFileName));
                 var cookies = JsonSerializer.Deserialize<List<Cookie>>(cookieJson);
                 await context.AddCookiesAsync(cookies!);
             }
@@ -41,79 +43,103 @@ namespace OrderEntry.MindfulTrader
 
         public async Task<List<StockOrder>> GetStockOrders(string parseSettingKey, Strategies strategy, decimal accountBalance)
         {
-            await GotoPage(ParseTypes.Watchlist);
-            
-            await page.Locator("#account_balance").FillAsync(accountBalance.ToString());
-            await page.Locator("#buying_powerW").SetCheckedAsync(false);
-            await page.Locator("#filter_strategy").SelectOptionAsync(new[] { strategy == Strategies.MainPullback ? "Main Pullback" : strategy == Strategies.DoubleDown ? "Double Down" : throw new NotImplementedException() });
-
-            var viewMoreClass = "load_more_1";
-            await page.Locator($"[class='{viewMoreClass}']").ClickAsync();
-
-            var list = new List<StockOrder>();
-            foreach (var row in await page.Locator("#favorite_stocks").Locator("tr").AllAsync())
+            try
             {
-                if (((await row.GetAttributeAsync("class")) ?? string.Empty).Contains("filtered-out"))
-                    continue;
-                var rowText = await row.InnerTextAsync();
-                if (rowText.Contains("Watch Date")) continue;
-                var order = ReadStockOrder(parseSettingKey, rowText.ReplaceLineEndings(string.Empty), false);
-                if (order != null) list.Add(order);
-            }
+                await GotoPage(ParseTypes.Watchlist);
 
-            return list;
+                await page.Locator("#account_balance").FillAsync(accountBalance.ToString());
+                await page.Locator("#buying_powerW").SetCheckedAsync(false);
+                await page.Locator("#filter_strategy").SelectOptionAsync(new[] { strategy == Strategies.MainPullback ? "Main Pullback" : strategy == Strategies.DoubleDown ? "Double Down" : throw new NotImplementedException() });
+
+                var viewMoreClass = "load_more_1";
+                await page.Locator($"[class='{viewMoreClass}']").ClickAsync();
+
+                var list = new List<StockOrder>();
+                foreach (var row in await page.Locator("#favorite_stocks").Locator("tr").AllAsync())
+                {
+                    if (((await row.GetAttributeAsync("class")) ?? string.Empty).Contains("filtered-out"))
+                        continue;
+                    var rowText = await row.InnerTextAsync();
+                    if (rowText.Contains("Watch Date")) continue;
+                    var order = ReadStockOrder(parseSettingKey, rowText.ReplaceLineEndings(string.Empty), false);
+                    if (order != null) list.Add(order);
+                }
+
+                return list;
+            }
+            catch
+            {
+                await CaptureContent("mindfultradererror");
+                throw;
+            }
         }
 
         public async Task<List<OptionOrder>> GetOptionOrders(string parseSettingKey, Strategies strategy, decimal accountBalance)
         {
-            await GotoPage(ParseTypes.Watchlist);
-
-            await page.Locator("#account_balance").FillAsync(accountBalance.ToString());
-            await page.Locator("#buying_powerW").SetCheckedAsync(false);
-            await page.Locator("#filter_strategy").SelectOptionAsync(new[] { strategy == Strategies.MainPullback ? "Main Pullback" : strategy == Strategies.DoubleDown ? "Double Down" : throw new NotImplementedException() });
-
-            var viewMoreClass = "load_more_2";
-            await page.Locator($"[class='{viewMoreClass}']").ClickAsync();
-
-            var list = new List<OptionOrder>();
-
-            foreach (var row in await page.Locator("#options").Locator("tr").AllAsync())
+            try
             {
-                if (((await row.GetAttributeAsync("class")) ?? string.Empty).Contains("filtered-out"))
-                    continue;
-                var rowText = await row.InnerTextAsync();
-                if (rowText.Contains("Watch Date")) continue;
-                var order = ReadOptionOrder(parseSettingKey, rowText.ReplaceLineEndings(string.Empty));
-                if (order != null) list.Add(order);
-            }
+                await GotoPage(ParseTypes.Watchlist);
 
-            return list;
+                await page.Locator("#account_balance").FillAsync(accountBalance.ToString());
+                await page.Locator("#buying_powerW").SetCheckedAsync(false);
+                await page.Locator("#filter_strategy").SelectOptionAsync(new[] { strategy == Strategies.MainPullback ? "Main Pullback" : strategy == Strategies.DoubleDown ? "Double Down" : throw new NotImplementedException() });
+
+                var viewMoreClass = "load_more_2";
+                await page.Locator($"[class='{viewMoreClass}']").ClickAsync();
+
+                var list = new List<OptionOrder>();
+
+                foreach (var row in await page.Locator("#options").Locator("tr").AllAsync())
+                {
+                    if (((await row.GetAttributeAsync("class")) ?? string.Empty).Contains("filtered-out"))
+                        continue;
+                    var rowText = await row.InnerTextAsync();
+                    if (rowText.Contains("Watch Date")) continue;
+                    var order = ReadOptionOrder(parseSettingKey, rowText.ReplaceLineEndings(string.Empty));
+                    if (order != null) list.Add(order);
+                }
+
+                return list;
+            }
+            catch
+            {
+                await CaptureContent("mindfultradererror");
+                throw;
+            }
         }
 
         public async Task<List<StockOrder>> GetLowPricedStockOrders(string parseSettingKey, Strategies strategy, decimal accountBalance)
         {
-            await GotoPage(ParseTypes.Watchlist);
-
-            await page.Locator("#account_balance").FillAsync(accountBalance.ToString());
-            await page.Locator("#buying_powerW").SetCheckedAsync(false);
-            await page.Locator("#filter_strategy").SelectOptionAsync(new[] { strategy == Strategies.MainPullback ? "Main Pullback" : strategy == Strategies.DoubleDown ? "Double Down" : throw new NotImplementedException() });
-
-            var viewMoreClass = "load_more_3";
-            await page.Locator($"[class='{viewMoreClass}']").ClickAsync();
-
-            var list = new List<StockOrder>();
-
-            foreach (var row in await page.Locator("#low_price_stocks").Locator("tr").AllAsync())
+            try
             {
-                if (((await row.GetAttributeAsync("class")) ?? string.Empty).Contains("filtered-out"))
-                    continue;
-                var rowText = await row.InnerTextAsync();
-                if (rowText.Contains("Watch Date")) continue;
-                var order = ReadStockOrder(parseSettingKey, rowText.ReplaceLineEndings(string.Empty), true);
-                if (order != null) list.Add(order);
-            }
+                await GotoPage(ParseTypes.Watchlist);
 
-            return list;
+                await page.Locator("#account_balance").FillAsync(accountBalance.ToString());
+                await page.Locator("#buying_powerW").SetCheckedAsync(false);
+                await page.Locator("#filter_strategy").SelectOptionAsync(new[] { strategy == Strategies.MainPullback ? "Main Pullback" : strategy == Strategies.DoubleDown ? "Double Down" : throw new NotImplementedException() });
+
+                var viewMoreClass = "load_more_3";
+                await page.Locator($"[class='{viewMoreClass}']").ClickAsync();
+
+                var list = new List<StockOrder>();
+
+                foreach (var row in await page.Locator("#low_price_stocks").Locator("tr").AllAsync())
+                {
+                    if (((await row.GetAttributeAsync("class")) ?? string.Empty).Contains("filtered-out"))
+                        continue;
+                    var rowText = await row.InnerTextAsync();
+                    if (rowText.Contains("Watch Date")) continue;
+                    var order = ReadStockOrder(parseSettingKey, rowText.ReplaceLineEndings(string.Empty), true);
+                    if (order != null) list.Add(order);
+                }
+
+                return list;
+            }
+            catch
+            {
+                await CaptureContent("mindfultradererror");
+                throw;
+            }
         }
 
         private async Task GotoPage(ParseTypes parseTypes)
@@ -127,7 +153,7 @@ namespace OrderEntry.MindfulTrader
                 await page.Locator("[name='password']").FillAsync(options.Value.Password);
                 await page.Locator("[name='submit']").ClickAsync();
                 await page.GotoAsync(url);
-                await File.WriteAllTextAsync(options.Value.CookieFilePath, JsonSerializer.Serialize(await context.CookiesAsync()));
+                await File.WriteAllTextAsync(Path.Combine(options.Value.DataPath, CookieFileName), JsonSerializer.Serialize(await context.CookiesAsync()));
             }
 
             if (page.Url != url)
@@ -201,6 +227,12 @@ namespace OrderEntry.MindfulTrader
                 ParseTypes.TriggeredList => "https://www.mindfultrader.com/triggered_list.html",
                 _ => throw new NotImplementedException()
             };
+        }
+
+        private async Task CaptureContent(string filenameWithoutExtension)
+        {
+            await File.WriteAllTextAsync(Path.Combine(options.Value.DataPath, $"{filenameWithoutExtension}.html"), await page.InnerHTMLAsync("html"));
+            await Screenshot(Path.Combine(options.Value.DataPath, $"{filenameWithoutExtension}.jpg"));
         }
 
         public void Dispose()
