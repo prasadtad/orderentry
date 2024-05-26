@@ -11,6 +11,7 @@
         <thead>
             <tr>
                 <td>Account</td>
+                <td>Balance</td>
                 <td>Ticker</td>
                 <td>Count</td>
                 <td>Average Cost</td>
@@ -22,6 +23,7 @@
             {
                 <tr style="background-color: @Model.InteractiveBrokers[i].BackgroundColor">                  
                     <td>@Model.InteractiveBrokers[i].Account</td>
+                    <td>@Model.InteractiveBrokers[i].AccountBalance</td>
                     <td>@Model.InteractiveBrokers[i].Ticker</td>
                     <td>@Model.InteractiveBrokers[i].Count</td>
                     <td>@Model.InteractiveBrokers[i].AverageCost</td>
@@ -36,6 +38,7 @@
         <thead>
             <tr>
                 <td>Account</td>
+                <td>Balance</td>
                 <td>Ticker</td>
                 <td>Count</td>
                 <td>Average Cost</td>
@@ -47,6 +50,7 @@
             {
                 <tr style="background-color: @Model.CharlesSchwab[i].BackgroundColor">                  
                     <td>@Model.CharlesSchwab[i].Account</td>
+                    <td>@Model.CharlesSchwab[i].AccountBalance</td>
                     <td>@Model.CharlesSchwab[i].Ticker</td>
                     <td>@Model.CharlesSchwab[i].Count</td>
                     <td>@Model.CharlesSchwab[i].AverageCost</td>
