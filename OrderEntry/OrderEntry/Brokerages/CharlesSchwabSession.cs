@@ -52,15 +52,15 @@ namespace OrderEntry.Brokerages
             return await page.ScreenshotAsync(new() { Path = screenshotPath });
         }
 
-        public async Task<(decimal AccountValue, List<StockPosition> Positions)> GetStockPositions(Func<string, bool> isActivelyTrade)
+        public async Task<(decimal? AccountValue, List<StockPosition> Positions)> GetStockPositions(Func<string, bool> isActivelyTrade)
         {
             try
             {
                 await GotoPage(PositionsUrl);
                 
-                var accountValueText = await page.Locator("[sdps-id=\"account-value-total\"]").Locator("sdps-number").InnerTextAsync();                
-                if (!decimal.TryParse(accountValueText.TrimStart('$'), out var accountValue)) 
-                    throw new Exception($"Cannot parse account value from {accountValueText}");
+                var accountValueText = await page.Locator("[sdps-id=\"account-value-total\"]").Locator("sdps-number").InnerTextAsync();                                
+                if (!decimal.TryParse(accountValueText.TrimStart('$'), out var accountValue))
+                    logger.LogError("Cannot parse account value from {accountValueText}", accountValueText);
 
                 await page.Locator("#quantity-tableHeader-0").WaitForAsync();
                 await page.Locator("#costPerShare-tableHeader-1").WaitForAsync();
@@ -103,7 +103,7 @@ namespace OrderEntry.Brokerages
                     });
                 }
 
-                return (accountValue, positions);
+                return (accountValue <= 0 ? null : accountValue, positions);
             }
             catch (Exception ex)
             {
