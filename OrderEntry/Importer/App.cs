@@ -14,6 +14,8 @@ namespace Importer
         private readonly IInteractiveBrokersService interactiveBrokersService = interactiveBrokersService;
         private readonly ICharlesSchwabService charlesSchwabService = charlesSchwabService;
 
+        private const decimal RiskFactor = 0.75m;
+
         public async Task Run()
         {
             var parseSettings = await databaseService.GetParseSettings();
@@ -42,20 +44,22 @@ namespace Importer
             {
                 logger.LogInformation("Opening {broker} session", broker);
                 using var session = await charlesSchwabService.GetSession();
-                (charlesSchwabAccountBalance, positions) = await session.GetStockPositions((ticker) => dbPositions.SingleOrDefault(p => p.Ticker == ticker)?.ActivelyTrade ?? true);
-                logger.LogInformation("Charles Schwab account balance is ${balance}", charlesSchwabAccountBalance);
-                if (charlesSchwabAccountBalance != null)
-                    parseSettings.Single().AccountBalance = charlesSchwabAccountBalance.Value;
+                (charlesSchwabAccountBalance, positions) = await session.GetStockPositions((ticker) => dbPositions.SingleOrDefault(p => p.Ticker == ticker)?.ActivelyTrade ?? true);                
+                if (charlesSchwabAccountBalance != null) {
+                    parseSettings.Single().AccountBalance = charlesSchwabAccountBalance.Value * RiskFactor;
+                    logger.LogInformation("Charles Schwab account balance is ${balance}, using {adjustedBalance} for mindful trader", charlesSchwabAccountBalance, parseSettings.Single().AccountBalance);
+                }
             }
             else 
             {
                 positions = await interactiveBrokersService.GetStockPositions((accountId, ticker) => dbPositions.SingleOrDefault(p => p.AccountId == accountId && p.Ticker == ticker)?.ActivelyTrade ?? true);
                 foreach (var parseSetting in parseSettings)
                 {
-                    var interactiveBrokersAccountBalance = await interactiveBrokersService.GetAccountValue(parseSetting.AccountId);
-                    logger.LogInformation("{parseSetting} account balance is ${balance}", parseSetting, interactiveBrokersAccountBalance);
-                    if (interactiveBrokersAccountBalance != null)
-                        parseSetting.AccountBalance = interactiveBrokersAccountBalance.Value;
+                    var interactiveBrokersAccountBalance = await interactiveBrokersService.GetAccountValue(parseSetting.AccountId);                    
+                    if (interactiveBrokersAccountBalance != null) {
+                        parseSetting.AccountBalance = interactiveBrokersAccountBalance.Value * RiskFactor;
+                        logger.LogInformation("{parseSetting} account balance is ${balance}, using {adjustedBalance} for mindful trader", parseSetting, interactiveBrokersAccountBalance, parseSetting.AccountBalance);
+                    }
                 }
             }
             await databaseService.Save(parseSettings);
