@@ -14,30 +14,56 @@ namespace Importer
         private readonly IInteractiveBrokersService interactiveBrokersService = interactiveBrokersService;
         private readonly ICharlesSchwabService charlesSchwabService = charlesSchwabService;
 
+        private const decimal RiskFactor = 0.75m;
+
         public async Task Run()
         {
-            await SyncStockPositions();
-            await SyncOrders();
+            var parseSettings = await databaseService.GetParseSettings();
+            if (parseSettings.Count == 0)
+                logger.LogWarning("No active parse settings found in database");
+
+            await SyncStockPositions(parseSettings);
+            await SyncOrders(parseSettings);
         }
 
-        public async Task SyncStockPositions()
+        public async Task SyncStockPositions(List<ParseSetting> parseSettings)
         {
-            await SyncStockPositions(Brokers.CharlesSchwab);
-            await SyncStockPositions(Brokers.InteractiveBrokers);
+            await SyncStockPositions(Brokers.CharlesSchwab, parseSettings.Where(p => p.Broker == Brokers.CharlesSchwab).ToList());
+            await SyncStockPositions(Brokers.InteractiveBrokers, parseSettings.Where(p => p.Broker == Brokers.InteractiveBrokers).ToList());
         }
 
-        private async Task SyncStockPositions(Brokers broker)
+        private async Task SyncStockPositions(Brokers broker, List<ParseSetting> parseSettings)
         {
             var dbPositions = await databaseService.GetStockPositions(broker);
 
             logger.LogInformation("{count} {broker} positions in database", dbPositions.Count, broker);
 
-            logger.LogInformation("Opening charles schwab session");
-            await using var session = await charlesSchwabService.GetSession();
-            var positions = broker == Brokers.CharlesSchwab ? await session.GetStockPositions((ticker) => dbPositions.SingleOrDefault(p => p.Ticker == ticker)?.ActivelyTrade ?? true)
-            : await interactiveBrokersService.GetStockPositions((accountId, ticker) => dbPositions
-                .SingleOrDefault(p => p.AccountId == accountId && p.Ticker == ticker)
-                    ?.ActivelyTrade ?? true);
+            List<StockPosition> positions;
+            decimal? charlesSchwabAccountBalance = null;
+            if (broker == Brokers.CharlesSchwab)
+            {
+                logger.LogInformation("Opening {broker} session", broker);
+                using var session = await charlesSchwabService.GetSession();
+                (charlesSchwabAccountBalance, positions) = await session.GetStockPositions((ticker) => dbPositions.SingleOrDefault(p => p.Ticker == ticker)?.ActivelyTrade ?? true);                
+                if (charlesSchwabAccountBalance != null) {
+                    parseSettings.Single().AccountBalance = charlesSchwabAccountBalance.Value * RiskFactor;
+                    logger.LogInformation("Charles Schwab account balance is ${balance}, using {adjustedBalance} for mindful trader", charlesSchwabAccountBalance, parseSettings.Single().AccountBalance);
+                }
+            }
+            else 
+            {
+                positions = await interactiveBrokersService.GetStockPositions((accountId, ticker) => dbPositions.SingleOrDefault(p => p.AccountId == accountId && p.Ticker == ticker)?.ActivelyTrade ?? true);
+                foreach (var parseSetting in parseSettings)
+                {
+                    var interactiveBrokersAccountBalance = await interactiveBrokersService.GetAccountValue(parseSetting.AccountId);                    
+                    if (interactiveBrokersAccountBalance != null) {
+                        parseSetting.AccountBalance = interactiveBrokersAccountBalance.Value * RiskFactor;
+                        logger.LogInformation("{parseSetting} account balance is ${balance}, using {adjustedBalance} for mindful trader", parseSetting, interactiveBrokersAccountBalance, parseSetting.AccountBalance);
+                    }
+                }
+            }
+            await databaseService.Save(parseSettings);
+
             logger.LogInformation("{count} {broker} positions", positions.Count, broker);
 
             var deletes = new List<StockPosition>();
@@ -50,7 +76,7 @@ namespace Importer
             }
             foreach (var position in positions)
             {
-                var dbPosition = dbPositions.SingleOrDefault(p => p.AccountId == position.AccountId && p.Ticker == position.Ticker);
+                var dbPosition = dbPositions.SingleOrDefault(p => p.AccountId == position.AccountId && p.Ticker == position.Ticker);                
                 if (dbPosition == null)
                     inserts.Add(position);
                 else if (dbPosition.Count != position.Count || dbPosition.AverageCost != position.AverageCost)
@@ -67,7 +93,7 @@ namespace Importer
             logger.LogInformation("Updated {count} {broker} {positions}", updates.Count, broker, updates);
         }
 
-        private async Task SyncOrders()
+        private async Task SyncOrders(List<ParseSetting> parseSettings)
         {
             var watchDate = DateUtils.TodayEST;
             var earliestDeleteDate = watchDate.AddDays(-7);
@@ -78,9 +104,8 @@ namespace Importer
             var deletedOptionOrderCount = await databaseService.DeleteOptionOrders(earliestDeleteDate);
             logger.LogInformation("Deleted {count} option orders before {watchDate}", deletedOptionOrderCount, earliestDeleteDate);
 
-            var parseSettings = await databaseService.GetParseSettings();
-            if (parseSettings.Count == 0)
-                logger.LogWarning("No active parse settings found in database");
+            logger.LogInformation("Opening mindful trader session");
+            using var session = await mindfulTraderService.GetSession();
 
             foreach (var parseSetting in parseSettings)
             {

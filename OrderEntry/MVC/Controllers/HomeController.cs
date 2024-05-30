@@ -41,7 +41,8 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
         
         if (stockOrders != null)
         {
-            var balance = 0.0m;
+            var balance = stockPositions.Where(p => p.Broker == importedStockParseSetting.Broker && p.AccountId == importedStockParseSetting.AccountId)
+                                        .Sum(p => p.AverageCost * p.Count);
             foreach (var stockOrder in stockOrders)
             {
                 var (entry, profit, stop) = charlesSchwabService.GetPastableFormat(stockOrder);
@@ -157,6 +158,7 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
                                    : interactiveBrokersStockOrders!.Any(o => o.ParseSettingKey == parseSetting.Key && o.Ticker == stockPosition.Ticker);
                 var viewModel = new StockPositionViewModel
                 {
+                    AccountBalance = parseSetting!.AccountBalance,
                     Broker = stockPosition.Broker.ToString(),
                     Account = parseSetting?.Account ?? stockPosition.AccountId,
                     ActivelyTrade = stockPosition.ActivelyTrade,

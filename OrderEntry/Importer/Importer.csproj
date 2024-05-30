@@ -25,4 +25,8 @@
   <ItemGroup>
     <ProjectReference Include="..\OrderEntry\OrderEntry.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Content\" />
+  </ItemGroup>
 </Project>

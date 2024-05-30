@@ -10,6 +10,8 @@ namespace OrderEntry.MindfulTrader
     {
         private static readonly char[] separator = [' ', '\t'];
 
+        private const string CookieFileName = "mindfultradercookies.json";
+
         private readonly IOptions<MindfulTraderSettings> options = options;
         private readonly IPlaywright playwright = playwright;
         private readonly IBrowser browser = browser;
@@ -26,9 +28,9 @@ namespace OrderEntry.MindfulTrader
             {
                 ViewportSize = new ViewportSize { Width = 2560, Height = 4096 }
             });
-            if (File.Exists(options.Value.CookieFilePath))
+            if (File.Exists(Path.Combine(options.Value.DataPath, CookieFileName)))
             {
-                var cookieJson = await File.ReadAllTextAsync(options.Value.CookieFilePath);
+                var cookieJson = await File.ReadAllTextAsync(Path.Combine(options.Value.DataPath, CookieFileName));
                 var cookies = JsonSerializer.Deserialize<List<Cookie>>(cookieJson);
                 await context.AddCookiesAsync(cookies!);
             }
@@ -56,33 +58,52 @@ namespace OrderEntry.MindfulTrader
             return await GetWatchlistOrders<StockOrder>(parseSettingKey, strategy, accountBalance, true);
         }
 
-        private async Task<List<T>> GetWatchlistOrders<T>(string parseSettingKey, Strategies strategy, decimal accountBalance, bool? lowPriced = null) where T: class
+        private async Task<List<T>> GetWatchlistOrders<T>(string parseSettingKey, Strategies strategy,
+            decimal accountBalance, bool? lowPriced = null) where T : class
         {
-            await GotoPage(ParseTypes.Watchlist);
-            
-            await page.Locator("#buying_powerW").SetCheckedAsync(false);
-            await page.Locator("#filter_strategy").SelectOptionAsync(new[] { strategy == Strategies.MainPullback ? "Main Pullback" : strategy == Strategies.DoubleDown ? "Double Down" : throw new NotImplementedException() });
-            await page.Locator("#account_balance").PressSequentiallyAsync(accountBalance.ToString(CultureInfo.CurrentCulture));
-            await page.DispatchEventAsync("#account_balance", "change");
-
-            var viewMoreClass = typeof(T) == typeof(StockOrder) ? (lowPriced!.Value ? "load_more_3" : "load_more_1") : "load_more_2";
-            var viewMoreSelector = $"[class='{viewMoreClass}']";
-            if (await page.IsVisibleAsync(viewMoreSelector))
-                await page.Locator(viewMoreSelector).ClickAsync();
-            
-            var list = new List<T>();
-            var tableSelector = typeof(T) == typeof(StockOrder) ? (lowPriced!.Value ? "#low_price_stocks" : "#favorite_stocks") : "#options";
-            foreach (var row in await page.Locator(tableSelector).Locator("tr").AllAsync())
+            try
             {
-                if (((await row.GetAttributeAsync("class")) ?? string.Empty).Contains("filtered-out"))
-                    continue;
-                var rowText = await row.InnerTextAsync();
-                if (rowText.Contains("Watch Date")) continue;
-                var order = ReadWatchlistOrder<T>(parseSettingKey, rowText.ReplaceLineEndings(string.Empty), lowPriced);
-                list.Add(order);
-            }
+                await GotoPage(ParseTypes.Watchlist);
 
-            return list;
+                await page.Locator("#buying_powerW").SetCheckedAsync(false);
+                await page.Locator("#filter_strategy").SelectOptionAsync(new[]
+                {
+                    strategy == Strategies.MainPullback ? "Main Pullback" :
+                    strategy == Strategies.DoubleDown ? "Double Down" : throw new NotImplementedException()
+                });
+                await page.Locator("#account_balance")
+                    .PressSequentiallyAsync(accountBalance.ToString(CultureInfo.CurrentCulture));
+                await page.DispatchEventAsync("#account_balance", "change");
+
+                var viewMoreClass = typeof(T) == typeof(StockOrder)
+                    ? (lowPriced!.Value ? "load_more_3" : "load_more_1")
+                    : "load_more_2";
+                var viewMoreSelector = $"[class='{viewMoreClass}']";
+                if (await page.IsVisibleAsync(viewMoreSelector))
+                    await page.Locator(viewMoreSelector).ClickAsync();
+
+                var list = new List<T>();
+                var tableSelector = typeof(T) == typeof(StockOrder)
+                    ? (lowPriced!.Value ? "#low_price_stocks" : "#favorite_stocks")
+                    : "#options";
+                foreach (var row in await page.Locator(tableSelector).Locator("tr").AllAsync())
+                {
+                    if (((await row.GetAttributeAsync("class")) ?? string.Empty).Contains("filtered-out"))
+                        continue;
+                    var rowText = await row.InnerTextAsync();
+                    if (rowText.Contains("Watch Date")) continue;
+                    var order = ReadWatchlistOrder<T>(parseSettingKey, rowText.ReplaceLineEndings(string.Empty),
+                        lowPriced);
+                    list.Add(order);
+                }
+
+                return list;
+            }
+            catch
+            {
+                await CaptureContent("mindfultradererror");
+                throw;
+            }
         }
 
         private async Task GotoPage(ParseTypes parseTypes)
@@ -100,7 +121,7 @@ namespace OrderEntry.MindfulTrader
                 await page.Locator("[name='password']").FillAsync(options.Value.Password);
                 await page.Locator("[name='submit']").ClickAsync();
                 await page.GotoAsync(url);
-                await File.WriteAllTextAsync(options.Value.CookieFilePath, JsonSerializer.Serialize(await context.CookiesAsync()));
+                await File.WriteAllTextAsync(Path.Combine(options.Value.DataPath, CookieFileName), JsonSerializer.Serialize(await context.CookiesAsync()));
             }
 
             if (page.Url != url)
@@ -179,6 +200,12 @@ namespace OrderEntry.MindfulTrader
                 ParseTypes.TriggeredList => "https://www.mindfultrader.com/triggered_list.html",
                 _ => throw new NotImplementedException()
             };
+        }
+
+        private async Task CaptureContent(string filenameWithoutExtension)
+        {
+            await File.WriteAllTextAsync(Path.Combine(options.Value.DataPath, $"{filenameWithoutExtension}.html"), await page.InnerHTMLAsync("html"));
+            await Screenshot(Path.Combine(options.Value.DataPath, $"{filenameWithoutExtension}.jpg"));
         }
 
         public void Dispose()

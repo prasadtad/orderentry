@@ -19,16 +19,19 @@ namespace OrderEntry.Brokerages
             this.logger = logger;
         }
 
-        public async Task<Dictionary<string, string>> Display(string account)
-        {
-            logger.LogDebug("Connecting...");
-
+        public async Task<decimal?> GetAccountValue(string account)
+        {            
             var twsController = twsObjectFactory.TwsControllerBase;
             await twsController.EnsureConnectedAsync();
 
             logger.LogDebug("Getting {account} details...", account);
             var ad = await twsController.GetAccountDetailsAsync(account);
-            return ad.ToDictionary();
+            var details = ad.ToDictionary();
+            if (details["Currency"] != "USD") {
+                logger.LogError("Currency should be USD in {details}", details);
+                return null;
+            }
+            return decimal.TryParse(details["NetLiquidationByCurrency"], out var accountBalance) ? accountBalance : null;
         }
 
         public async Task<decimal?> GetCurrentPrice(string account, string ticker)
@@ -295,7 +298,7 @@ namespace OrderEntry.Brokerages
 
     public interface IInteractiveBrokersService
     {
-        Task<Dictionary<string, string>> Display(string account);
+        Task<decimal?> GetAccountValue(string account);
 
         Task<decimal?> GetCurrentPrice(string account, string ticker);
 
