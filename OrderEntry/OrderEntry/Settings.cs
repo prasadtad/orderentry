@@ -37,5 +37,10 @@
     {
         public required int Port { get; set; }
     }
+
+    public class PolygonApiSettings
+    {
+        public required string ApiKey {get;set;}
+    }
 }
 

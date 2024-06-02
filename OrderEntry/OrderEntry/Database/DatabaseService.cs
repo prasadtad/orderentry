@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using OrderEntry.Apis;
 using OrderEntry.Brokerages;
 using OrderEntry.MindfulTrader;
 
@@ -127,6 +128,26 @@ namespace OrderEntry.Database
                 await context.SaveChangesAsync();
             }
         }
+
+        public async Task<bool> HasStockDayData(DateOnly date, string ticker)
+        {
+            return await context.StockDayDatas.AnyAsync(s => s.From == date && s.Symbol == ticker);
+        }
+
+        public async Task<StockDayData?> GetStockDayData(DateOnly date, string ticker)
+        {
+            return await context.StockDayDatas.Where(s => s.From == date && s.Symbol == ticker).AsNoTracking().SingleOrDefaultAsync();
+        }
+
+        public async Task Insert(List<StockDayData> stockDayDatas)
+        {
+            if (stockDayDatas.Count > 0) context.AddRange(stockDayDatas);
+
+            if (stockDayDatas.Count > 0)
+            {
+                await context.SaveChangesAsync();
+            }
+        }
     }
 
     public interface IDatabaseService
@@ -162,5 +183,11 @@ namespace OrderEntry.Database
         Task Insert(List<StockPosition> stockPositions);
 
         Task Update(List<StockPosition> stockPositions);
+
+        Task<bool> HasStockDayData(DateOnly date, string ticker);
+
+        Task<StockDayData?> GetStockDayData(DateOnly date, string ticker);
+
+        Task Insert(List<StockDayData> stockDayDatas);
     }
 }

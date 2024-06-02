@@ -39,8 +39,10 @@ namespace AutoTrader
                     services.Configure<DatabaseSettings>(builder.Configuration.GetSection("Database"));
                     services.Configure<CharlesSchwabSettings>(builder.Configuration.GetSection("CharlesSchwab"));
                     services.Configure<InteractiveBrokersSettings>(builder.Configuration.GetSection("InteractiveBrokers"));
+                    services.Configure<PolygonApiSettings>(builder.Configuration.GetSection("PolygonApiSettings"));
                     services.AddBrokerages();
                     services.AddDatabase();
+                    services.AddApis();
                     services.AddSingleton<App>();
                 })
                 .ConfigureAppConfiguration((h, c) =>
