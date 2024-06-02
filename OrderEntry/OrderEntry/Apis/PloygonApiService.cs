@@ -14,6 +14,8 @@ namespace OrderEntry.Apis
         private readonly IOptions<PolygonApiSettings> options;
         private readonly IDatabaseService databaseService;
 
+        private DateTime _tooManyRequestsTimestamp;
+
         private const string BaseUrl = "https://api.polygon.io";
 
         public PolygonApiService(ILogger<PolygonApiService> logger, HttpClient httpClient, IOptions<PolygonApiSettings> options, IDatabaseService databaseService)
@@ -51,9 +53,9 @@ namespace OrderEntry.Apis
         private async Task<DateOnly> FillEndOfDayData(DateOnly date, string ticker, DateOnly earliestDate)
         {
             var numCalls = 0;
-            while (numCalls < 5 || date >= earliestDate)
+            while (numCalls < 5 && date >= earliestDate && _tooManyRequestsTimestamp < DateTime.Now.Subtract(TimeSpan.FromMinutes(5)))
             {
-                if (date.DayOfWeek == DayOfWeek.Sunday || date.DayOfWeek == DayOfWeek.Saturday || await databaseService.HasStockDayData(date, ticker))
+                if (date.DayOfWeek == DayOfWeek.Sunday || date.DayOfWeek == DayOfWeek.Saturday || await databaseService.IsMarketHoliday(date) || await databaseService.HasStockDayData(date, ticker))
                 {
                     date = date.AddDays(-1);
                     continue;
@@ -63,9 +65,10 @@ namespace OrderEntry.Apis
                 numCalls++;
 
                 if (stockData != null) {
-                    await databaseService.Insert(new List<StockDayData> { stockData });
-                    date = date.AddDays(-1);
+                    await databaseService.Insert(new List<StockDayData> { stockData });                    
                 }
+
+                date = date.AddDays(-1);
             }
 
             return date;
@@ -86,6 +89,9 @@ namespace OrderEntry.Apis
             }
 
             logger.LogError("Unable to get stock data for {ticker} on {date}, got {status} {error}", ticker, date, response.StatusCode, response.ReasonPhrase);
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                _tooManyRequestsTimestamp = DateTime.Now;
+
             return null;
         }
     }

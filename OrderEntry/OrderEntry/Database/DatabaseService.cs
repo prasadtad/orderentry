@@ -9,6 +9,8 @@ namespace OrderEntry.Database
     {
         private readonly OrderEntryDbContext context = context;
 
+        private List<MarketHoliday> marketHolidays = null;
+
         public async Task<List<ParseSetting>> GetParseSettings()
         {
             return await context.ParseSettings.Where(o => o.Active).ToListAsync();
@@ -17,7 +19,7 @@ namespace OrderEntry.Database
         public async Task Save(List<ParseSetting> parseSettings)
         {
             context.UpdateRange(parseSettings);
-            
+
             if (parseSettings.Count > 0)
             {
                 await context.SaveChangesAsync();
@@ -148,6 +150,13 @@ namespace OrderEntry.Database
                 await context.SaveChangesAsync();
             }
         }
+
+        public async Task<bool> IsMarketHoliday(DateOnly date)
+        {
+            if (marketHolidays == null) marketHolidays = await context.MarketHolidays.AsNoTracking().ToListAsync();
+
+            return marketHolidays.Any(m => m.HolidayDate == date);
+        }
     }
 
     public interface IDatabaseService
@@ -189,5 +198,7 @@ namespace OrderEntry.Database
         Task<StockDayData?> GetStockDayData(DateOnly date, string ticker);
 
         Task Insert(List<StockDayData> stockDayDatas);
+
+        Task<bool> IsMarketHoliday(DateOnly date);
     }
 }

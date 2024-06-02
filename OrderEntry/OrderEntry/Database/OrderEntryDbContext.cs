@@ -17,6 +17,8 @@ namespace OrderEntry.Database
 
         public DbSet<StockDayData> StockDayDatas { get; set; }
 
+        public DbSet<MarketHoliday> MarketHolidays { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.HasPostgresEnum<Modes>()
                                                                                           .HasPostgresEnum<Strategies>()
                                                                                           .HasPostgresEnum<ParseTypes>()
