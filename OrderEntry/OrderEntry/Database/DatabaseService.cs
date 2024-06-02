@@ -9,7 +9,7 @@ namespace OrderEntry.Database
     {
         private readonly OrderEntryDbContext context = context;
 
-        private List<MarketHoliday> marketHolidays = null;
+        private List<MarketHoliday>? marketHolidays = null;
 
         public async Task<List<ParseSetting>> GetParseSettings()
         {
@@ -153,8 +153,7 @@ namespace OrderEntry.Database
 
         public async Task<bool> IsMarketHoliday(DateOnly date)
         {
-            if (marketHolidays == null) marketHolidays = await context.MarketHolidays.AsNoTracking().ToListAsync();
-
+            marketHolidays ??= await context.MarketHolidays.AsNoTracking().ToListAsync();
             return marketHolidays.Any(m => m.HolidayDate == date);
         }
     }
