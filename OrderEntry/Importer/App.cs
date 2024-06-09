@@ -8,12 +8,6 @@ namespace Importer
 {
     public class App(ILogger<App> logger, IMindfulTraderService mindfulTraderService, IDatabaseService databaseService, IInteractiveBrokersService interactiveBrokersService, ICharlesSchwabService charlesSchwabService)
     {
-        private readonly ILogger<App> logger = logger;
-        private readonly IMindfulTraderService mindfulTraderService = mindfulTraderService;
-        private readonly IDatabaseService databaseService = databaseService;
-        private readonly IInteractiveBrokersService interactiveBrokersService = interactiveBrokersService;
-        private readonly ICharlesSchwabService charlesSchwabService = charlesSchwabService;
-
         private const decimal RiskFactor = 0.75m;
 
         public async Task Run()

@@ -17,12 +17,15 @@ namespace OrderEntry.Database
 
         public DbSet<StockDayData> StockDayDatas { get; set; }
 
-        public DbSet<MarketHoliday> MarketHolidays { get; set; }
+        public DbSet<MarketDate> MarketDates { get; set; }
+
+        public DbSet<OptionContract> OptionContracts { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.HasPostgresEnum<Modes>()
                                                                                           .HasPostgresEnum<Strategies>()
                                                                                           .HasPostgresEnum<ParseTypes>()
                                                                                           .HasPostgresEnum<OptionTypes>()
-                                                                                          .HasPostgresEnum<Brokers>();
+                                                                                          .HasPostgresEnum<Brokers>()
+                                                                                          .HasPostgresEnum<MarketDateTypes>();
     }
 }

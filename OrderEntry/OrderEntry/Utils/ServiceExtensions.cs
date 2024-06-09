@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using OrderEntry.Algorithms;
 using OrderEntry.Apis;
 using OrderEntry.Brokerages;
 using OrderEntry.Database;
@@ -38,6 +39,7 @@ namespace OrderEntry.Utils
                 dataSourceBuilder.MapEnum<OptionTypes>("option_types");
                 dataSourceBuilder.MapEnum<Strategies>("strategies");
                 dataSourceBuilder.MapEnum<Brokers>("brokers");
+                dataSourceBuilder.MapEnum<MarketDateTypes>("market_date_types");
                 options.UseNpgsql(dataSourceBuilder.Build());
             });
         }
@@ -45,6 +47,7 @@ namespace OrderEntry.Utils
         public static void AddApis(this IServiceCollection services)
         {
             services.AddSingleton<IPolygonApiService, PolygonApiService>();
+            services.AddSingleton<ICoveredCallStrategy, CoveredCallStrategy>();
         }
     }
 }

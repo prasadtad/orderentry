@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OrderEntry.Database;
@@ -39,23 +40,38 @@ namespace OrderEntry.Apis
             return stockData;
         }
 
+        public async Task<List<OptionContract>> GetOptionContracts(DateOnly expirationDate, string type,  string ticker)
+        {
+            var optionContracts = await databaseService.GetOptionContracts(expirationDate, type, ticker);
+            if (optionContracts.Count == 0)
+            {
+                optionContracts = await GetOptionContractsFromApi(expirationDate, type, ticker);
+                if (optionContracts.Count > 0)
+                    await databaseService.Insert(optionContracts);
+            }
+
+            return optionContracts;
+        }
+
         public async Task FillEndOfDayData(int numDays, string ticker)
         {
             var date = DateUtils.TodayEST;
             var earliestDate = date.AddDays(-numDays);
             var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
-            date = await FillEndOfDayData(date.AddDays(-1), ticker, earliestDate);
-            while (date >= earliestDate && await timer.WaitForNextTickAsync()) {
-                date = await FillEndOfDayData(date, ticker, earliestDate);
+            var marketHolidays = await databaseService.GetMarketHolidays();
+            date = await FillEndOfDayData(date.AddDays(-1), ticker, earliestDate, marketHolidays);
+            while (date >= earliestDate && await timer.WaitForNextTickAsync())
+            {
+                date = await FillEndOfDayData(date, ticker, earliestDate, marketHolidays);
             }
         }
 
-        private async Task<DateOnly> FillEndOfDayData(DateOnly date, string ticker, DateOnly earliestDate)
+        private async Task<DateOnly> FillEndOfDayData(DateOnly date, string ticker, DateOnly earliestDate, List<DateOnly> marketHolidays)
         {
             var numCalls = 0;
             while (numCalls < 5 && date >= earliestDate && _tooManyRequestsTimestamp < DateTime.Now.Subtract(TimeSpan.FromMinutes(5)))
             {
-                if (date.DayOfWeek == DayOfWeek.Sunday || date.DayOfWeek == DayOfWeek.Saturday || await databaseService.IsMarketHoliday(date) || await databaseService.HasStockDayData(date, ticker))
+                if (date.DayOfWeek == DayOfWeek.Sunday || date.DayOfWeek == DayOfWeek.Saturday || marketHolidays.Contains(date) || await databaseService.HasStockDayData(date, ticker))
                 {
                     date = date.AddDays(-1);
                     continue;
@@ -64,8 +80,9 @@ namespace OrderEntry.Apis
                 var stockData = await GetStockDayDataFromApi(date, ticker);
                 numCalls++;
 
-                if (stockData != null) {
-                    await databaseService.Insert(new List<StockDayData> { stockData });                    
+                if (stockData != null)
+                {
+                    await databaseService.Insert(new List<StockDayData> { stockData });
                 }
 
                 date = date.AddDays(-1);
@@ -94,11 +111,68 @@ namespace OrderEntry.Apis
 
             return null;
         }
+
+        private async Task<List<OptionContract>> GetOptionContractsFromApi(DateOnly expirationDate, string type,  string ticker)
+        {            
+            var expirationDateString = expirationDate.ToString("yyyy-MM-dd");
+            var url = $"{BaseUrl}/v3/reference/options/contracts?underlying_ticker={ticker}&contract_type={type}&expiration_date={expirationDateString}&limit=1000";            
+            var list = new List<OptionContract>();
+            var sw = Stopwatch.StartNew();
+            var numCalls = 0;
+            do
+            {
+                if (numCalls == 5) {
+                    var delay = TimeSpan.FromMinutes(5) - sw.Elapsed;
+                    logger.LogInformation("5 calls made in last 5 minutes, waiting {delay}", delay);
+                    await Task.Delay(delay);
+                    sw.Restart();
+                    numCalls = 0;
+                }
+                var results = await GetOptionContractsFromApi($"{url}&apiKey={options.Value.ApiKey}");
+                numCalls++;
+                if (results == null) {
+                    return [];
+                }
+                list.AddRange(results.Results);
+                url = results.NextUrl;                
+            } while (!string.IsNullOrEmpty(url));
+            
+            return list;
+        }
+
+        private async Task<OptionContractResults?> GetOptionContractsFromApi(string url)
+        {
+            var request = new HttpRequestMessage
+            {
+                RequestUri = new Uri(url),
+                Method = HttpMethod.Get
+            };
+            var response = await httpClient.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<OptionContractResults>();
+            }
+
+            logger.LogError("Unable to get option contracts, got {status} {error}", response.StatusCode, response.ReasonPhrase);
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                _tooManyRequestsTimestamp = DateTime.Now;
+
+            return null;
+        }
+
+        private class OptionContractResults
+        {
+            [JsonPropertyName("results")] public required List<OptionContract> Results { get; set; }
+
+            [JsonPropertyName("next_url")] public string? NextUrl {get;set;}
+        }
     }
 
     public interface IPolygonApiService
     {
         Task<StockDayData?> GetStockData(DateOnly date, string ticker);
+
+        Task<List<OptionContract>> GetOptionContracts(DateOnly expirationDate, string type,  string ticker);
 
         Task FillEndOfDayData(int numDays, string ticker);
     }

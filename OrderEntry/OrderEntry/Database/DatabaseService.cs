@@ -9,7 +9,11 @@ namespace OrderEntry.Database
     {
         private readonly OrderEntryDbContext context = context;
 
-        private List<MarketHoliday>? marketHolidays = null;
+        private List<MarketDate>? marketDatesCache = null;
+
+        private List<OptionContract>? optionContractCache = null;
+
+        private List<StockDayData>? stockDayDataCache = null;
 
         public async Task<List<ParseSetting>> GetParseSettings()
         {
@@ -133,28 +137,72 @@ namespace OrderEntry.Database
 
         public async Task<bool> HasStockDayData(DateOnly date, string ticker)
         {
-            return await context.StockDayDatas.AnyAsync(s => s.From == date && s.Symbol == ticker);
+            if (stockDayDataCache == null) stockDayDataCache = await context.StockDayDatas.AsNoTracking().ToListAsync();
+
+            return stockDayDataCache.Any(s => s.From == date && s.Symbol == ticker);
+        }
+
+        public async Task<List<StockDayData>> GetStockDayData(DateOnly fromInclusive, DateOnly toExclusive, string ticker)
+        {
+            if (stockDayDataCache == null) stockDayDataCache = await context.StockDayDatas.AsNoTracking().ToListAsync();
+
+            return stockDayDataCache.Where(s => s.From >= fromInclusive && s.From < toExclusive && s.Symbol == ticker).ToList();
         }
 
         public async Task<StockDayData?> GetStockDayData(DateOnly date, string ticker)
         {
-            return await context.StockDayDatas.Where(s => s.From == date && s.Symbol == ticker).AsNoTracking().SingleOrDefaultAsync();
+            if (stockDayDataCache == null) stockDayDataCache = await context.StockDayDatas.AsNoTracking().ToListAsync();
+
+            return stockDayDataCache.Where(s => s.From == date && s.Symbol == ticker).SingleOrDefault();
         }
 
         public async Task Insert(List<StockDayData> stockDayDatas)
         {
+            if (stockDayDataCache == null) stockDayDataCache = await context.StockDayDatas.AsNoTracking().ToListAsync();
+
             if (stockDayDatas.Count > 0) context.AddRange(stockDayDatas);
 
             if (stockDayDatas.Count > 0)
             {
-                await context.SaveChangesAsync();
+                if (await context.SaveChangesAsync() == stockDayDatas.Count)
+                    stockDayDataCache.AddRange(stockDayDatas);
+                else
+                    stockDayDataCache = await context.StockDayDatas.AsNoTracking().ToListAsync();
             }
         }
 
-        public async Task<bool> IsMarketHoliday(DateOnly date)
+        public async Task<List<OptionContract>> GetOptionContracts(DateOnly expirationDate, string type, string ticker)
         {
-            marketHolidays ??= await context.MarketHolidays.AsNoTracking().ToListAsync();
-            return marketHolidays.Any(m => m.HolidayDate == date);
+            if (optionContractCache == null) optionContractCache = await context.OptionContracts.AsNoTracking().ToListAsync();
+
+            return optionContractCache.Where(s => s.ExpirationDate == expirationDate && s.ContractType == type && s.UnderlyingTicker == ticker).ToList();
+        }
+
+        public async Task Insert(List<OptionContract> optionContracts)
+        {
+            if (optionContractCache == null) optionContractCache = await context.OptionContracts.AsNoTracking().ToListAsync();
+
+            if (optionContracts.Count > 0) context.AddRange(optionContracts);
+
+            if (optionContracts.Count > 0)
+            {
+                if (await context.SaveChangesAsync() == optionContracts.Count)
+                    optionContractCache.AddRange(optionContracts);
+                else
+                    optionContractCache = await context.OptionContracts.AsNoTracking().ToListAsync();
+            }
+        }
+
+        public async Task<List<DateOnly>> GetMarketHolidays()
+        {
+            marketDatesCache ??= await context.MarketDates.AsNoTracking().ToListAsync();
+            return marketDatesCache.Where(m => m.MarketDateType == MarketDateTypes.Holiday).Select(m => m.Date).ToList();
+        }
+
+        public async Task<List<DateOnly>> GetMonthlyExpirations()
+        {
+            marketDatesCache ??= await context.MarketDates.AsNoTracking().ToListAsync();
+            return marketDatesCache.Where(m => m.MarketDateType == MarketDateTypes.MonthlyExpiration).Select(m => m.Date).ToList();
         }
     }
 
@@ -194,10 +242,18 @@ namespace OrderEntry.Database
 
         Task<bool> HasStockDayData(DateOnly date, string ticker);
 
+        Task<List<StockDayData>> GetStockDayData(DateOnly fromInclusive, DateOnly toExclusive, string ticker);
+
         Task<StockDayData?> GetStockDayData(DateOnly date, string ticker);
 
         Task Insert(List<StockDayData> stockDayDatas);
 
-        Task<bool> IsMarketHoliday(DateOnly date);
+        Task<List<OptionContract>> GetOptionContracts(DateOnly expirationDate, string type, string ticker);
+
+        Task Insert(List<OptionContract> optionContracts);
+
+        Task<List<DateOnly>> GetMarketHolidays();
+
+        Task<List<DateOnly>> GetMonthlyExpirations();
     }
 }

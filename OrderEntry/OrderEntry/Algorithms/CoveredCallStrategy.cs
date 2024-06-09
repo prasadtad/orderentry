@@ -1,30 +1,37 @@
+using MathNet.Numerics;
+using MathNet.Numerics.Statistics;
+
 namespace OrderEntry.Algorithms
 {
     public class CoveredCallStrategy : ICoveredCallStrategy
     {
-        public decimal GetMinimumPremiumRequired(decimal estimatedPriceNextMonth, decimal standardDeviation, decimal strikePrice)
+        public double GetMinimumPremiumRequired(double estimatedPriceNextMonth, double standardDeviation, double strikePrice)
         {
-            return 0;
+            var sqrt2Pi = Math.Sqrt(2*Math.PI);
+            var estimatedStrikeDistance = strikePrice - estimatedPriceNextMonth;
+            var estimatedStrikeDistanceSquare = estimatedStrikeDistance * estimatedStrikeDistance;
+            var standardDeviationSquare = standardDeviation * standardDeviation;
+            return (standardDeviation/sqrt2Pi*Math.Pow(Math.E, -estimatedStrikeDistanceSquare/(2*standardDeviationSquare)))-(estimatedStrikeDistance/2*(1-SpecialFunctions.Erf(estimatedStrikeDistance/Math.Sqrt(2*standardDeviationSquare))));
         }
 
-       	public decimal EstimateNextMonthPrice(decimal currentPrice, decimal priceThreeMonthsAgo)
+        public double EstimateNextMonthPrice(double currentPrice, double priceThreeMonthsAgo)
         {
-            var threeMonthPerformance = (currentPrice - priceThreeMonthsAgo) * 100 / priceThreeMonthsAgo;		
+            var threeMonthPerformance = (currentPrice - priceThreeMonthsAgo) * 100 / priceThreeMonthsAgo;
             return currentPrice + currentPrice * (threeMonthPerformance / 3) / 100;
         }
 
-        public decimal CalculateStandardDeviation()
+        public double CalculateStandardDeviation(List<double> prices)
         {
-            return 0;
+            return prices.StandardDeviation(); 
         }
     }
 
     public interface ICoveredCallStrategy
     {
-        decimal GetMinimumPremiumRequired(decimal estimatedPriceNextMonth, decimal standardDeviation, decimal strikePrice);
+        double GetMinimumPremiumRequired(double estimatedPriceNextMonth, double standardDeviation, double strikePrice);
 
-        decimal EstimateNextMonthPrice(decimal currentPrice, decimal priceThreeMonthsAgo);
+        double EstimateNextMonthPrice(double currentPrice, double priceThreeMonthsAgo);
 
-        decimal CalculateStandardDeviation();
+        double CalculateStandardDeviation(List<double> prices);
     }
 }
