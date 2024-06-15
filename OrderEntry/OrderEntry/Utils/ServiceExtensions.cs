@@ -48,6 +48,7 @@ namespace OrderEntry.Utils
         {
             services.AddSingleton<IPolygonApiService, PolygonApiService>();
             services.AddSingleton<ICoveredCallStrategy, CoveredCallStrategy>();
+            services.AddSingleton<IInsiderTraderService, InsiderTraderService>();
         }
     }
 }

@@ -15,6 +15,8 @@ namespace OrderEntry.Database
 
         private List<StockDayData>? stockDayDataCache = null;
 
+        private List<InsiderRecommendation>? insiderRecommendationsCache = null;
+
         public async Task<List<ParseSetting>> GetParseSettings()
         {
             return await context.ParseSettings.Where(o => o.Active).ToListAsync();
@@ -204,6 +206,27 @@ namespace OrderEntry.Database
             marketDatesCache ??= await context.MarketDates.AsNoTracking().ToListAsync();
             return marketDatesCache.Where(m => m.MarketDateType == MarketDateTypes.MonthlyExpiration).Select(m => m.Date).ToList();
         }
+
+        public async Task<List<InsiderRecommendation>> GetInsiderRecommendations()
+        {
+            insiderRecommendationsCache ??= await context.InsiderRecommendations.AsNoTracking().ToListAsync();
+            return insiderRecommendationsCache;
+        }
+
+        public async Task Insert(List<InsiderRecommendation> insiderRecommendations)
+        {
+             if (insiderRecommendationsCache == null) insiderRecommendationsCache = await context.InsiderRecommendations.AsNoTracking().ToListAsync();
+
+            if (insiderRecommendations.Count > 0) context.AddRange(insiderRecommendations);
+
+            if (insiderRecommendations.Count > 0)
+            {
+                if (await context.SaveChangesAsync() == insiderRecommendations.Count)
+                    insiderRecommendationsCache.AddRange(insiderRecommendations);
+                else
+                    insiderRecommendationsCache = await context.InsiderRecommendations.AsNoTracking().ToListAsync();
+            }
+        }
     }
 
     public interface IDatabaseService
@@ -255,5 +278,9 @@ namespace OrderEntry.Database
         Task<List<DateOnly>> GetMarketHolidays();
 
         Task<List<DateOnly>> GetMonthlyExpirations();
+
+        Task<List<InsiderRecommendation>> GetInsiderRecommendations();
+
+        Task Insert(List<InsiderRecommendation> insiderRecommendations);
     }
 }

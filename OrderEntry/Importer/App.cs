@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using OrderEntry.Apis;
 using OrderEntry.Brokerages;
 using OrderEntry.Database;
 using OrderEntry.MindfulTrader;
@@ -6,12 +7,13 @@ using OrderEntry.Utils;
 
 namespace Importer
 {
-    public class App(ILogger<App> logger, IMindfulTraderService mindfulTraderService, IDatabaseService databaseService, IInteractiveBrokersService interactiveBrokersService, ICharlesSchwabService charlesSchwabService)
+    public class App(ILogger<App> logger, IMindfulTraderService mindfulTraderService, IDatabaseService databaseService, IInteractiveBrokersService interactiveBrokersService, ICharlesSchwabService charlesSchwabService, IInsiderTraderService insiderTraderService)
     {
         private const decimal RiskFactor = 0.75m;
 
         public async Task Run()
         {
+            await insiderTraderService.Import("insiderrecommendations.txt");            
             var parseSettings = await databaseService.GetParseSettings();
             if (parseSettings.Count == 0)
                 logger.LogWarning("No active parse settings found in database");

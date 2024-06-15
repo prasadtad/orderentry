@@ -42,6 +42,7 @@ namespace Importer
                     services.Configure<CharlesSchwabSettings>(builder.Configuration.GetSection("CharlesSchwab"));
                     services.Configure<InteractiveBrokersSettings>(builder.Configuration.GetSection("InteractiveBrokers"));
                     services.Configure<PolygonApiSettings>(builder.Configuration.GetSection("PolygonApiSettings"));
+                    services.Configure<InsiderTraderSettings>(builder.Configuration.GetSection("InsiderTraderSettings"));
                     services.AddBrokerages();
                     services.AddSingleton<IMindfulTraderService, MindfulTraderService>();
                     services.AddDatabase();

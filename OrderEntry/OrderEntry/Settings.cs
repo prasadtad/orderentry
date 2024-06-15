@@ -42,5 +42,11 @@
     {
         public required string ApiKey {get;set;}
     }
+
+    public class InsiderTraderSettings
+    {
+        public required string DataPath { get; set; }
+
+    }
 }
 

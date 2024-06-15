@@ -21,6 +21,8 @@ namespace OrderEntry.Database
 
         public DbSet<OptionContract> OptionContracts { get; set; }
 
+        public DbSet<InsiderRecommendation> InsiderRecommendations { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder) => modelBuilder.HasPostgresEnum<Modes>()
                                                                                           .HasPostgresEnum<Strategies>()
                                                                                           .HasPostgresEnum<ParseTypes>()
