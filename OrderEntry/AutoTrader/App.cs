@@ -22,13 +22,15 @@ namespace AutoTrader
                                         .ToList();
             var themes = recommendations.Select(r => r.Theme).Distinct().OrderBy(o => o).ToList();
 
-            var existingInvestmentPositions = (await databaseService.GetStockPositions(OrderEntry.MindfulTrader.Brokers.InteractiveBrokers))
+            var interactiveBrokersPositions = (await databaseService.GetStockPositions(OrderEntry.MindfulTrader.Brokers.InteractiveBrokers))
                                         .Where(p => !p.ActivelyTrade).ToList();
+            var charlesSchwabPositions = (await databaseService.GetStockPositions(OrderEntry.MindfulTrader.Brokers.CharlesSchwab))
+                                        .Where(p => !p.ActivelyTrade).ToList();                                        
 
             logger.LogInformation("{count} themes", themes.Count);
             logger.LogInformation("{count} recommendations", recommendations.Count);
             
-            foreach (var parseSetting in parseSettings.Where(p => p.Broker == OrderEntry.MindfulTrader.Brokers.InteractiveBrokers))
+            foreach (var parseSetting in parseSettings)
             {
                 var balance = parseSetting.GetInsiderRecommendationAccountBalance();
                 logger.LogInformation("Account: {account}", parseSetting.Account);
@@ -36,7 +38,8 @@ namespace AutoTrader
                 logger.LogInformation("New position: ${balance}", 0.01m * balance);
                 logger.LogInformation("New sector: ${balance}", 0.1m * balance);
 
-                var existingPositions = existingInvestmentPositions.Where(p => p.AccountId == parseSetting.AccountId).ToList();
+                var existingPositions = parseSetting.Broker == OrderEntry.MindfulTrader.Brokers.InteractiveBrokers ? 
+                    interactiveBrokersPositions.Where(p => p.AccountId == parseSetting.AccountId).ToList() : charlesSchwabPositions.Where(c => c.AccountId == parseSetting.AccountId).ToList();
                 var existingPositionsByTheme = existingPositions.GroupBy(p => recommendations.Single(r => r.Ticker == p.Ticker).Theme)
                                                                  .ToDictionary(g => g.Key, g => g.ToList());                
                 foreach (var theme in themes)
@@ -71,7 +74,7 @@ namespace AutoTrader
                         continue;
                     }
 
-                    logger.LogInformation("    Recommendation: {ticker} in {theme}, value: {value}", recommendation.Ticker, recommendation.Theme, 0.01m * balance);
+                    logger.LogInformation("    Recommendation: {ticker} in {theme}, value: ${value}", recommendation.Ticker, recommendation.Theme, 0.01m * balance);
                     themeLimit[theme]++;
                     totalLimit++;
                 }
