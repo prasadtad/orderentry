@@ -15,13 +15,14 @@ namespace OrderEntry.MindfulTrader
         public async Task<List<T>> GetOrders<T>(ParseSetting parseSetting) where T : IOrder
         {
             using var session = await MindfulTraderSession.Create(options);
+            var accountBalance = parseSetting.GetMindfulTraderAccountBalance();
             if (parseSetting.ParseType == ParseTypes.Watchlist)
             {
                 return parseSetting.Mode switch
                 {
-                    Modes.Stock => [.. (await session.GetStockOrders(parseSetting.Key, parseSetting.Strategy, parseSetting.AccountBalance)).Cast<T>()],
-                    Modes.Option => [.. (await session.GetOptionOrders(parseSetting.Key, parseSetting.Strategy, parseSetting.AccountBalance)).Cast<T>()],
-                    Modes.LowPricedStock => [.. (await session.GetLowPricedStockOrders(parseSetting.Key, parseSetting.Strategy, parseSetting.AccountBalance)).Cast<T>()],
+                    Modes.Stock => [.. (await session.GetStockOrders(parseSetting.Key, parseSetting.Strategy, accountBalance)).Cast<T>()],
+                    Modes.Option => [.. (await session.GetOptionOrders(parseSetting.Key, parseSetting.Strategy, accountBalance)).Cast<T>()],
+                    Modes.LowPricedStock => [.. (await session.GetLowPricedStockOrders(parseSetting.Key, parseSetting.Strategy, accountBalance)).Cast<T>()],
                     Modes.None => [],
                     _ => [],
                 };
@@ -38,16 +39,17 @@ namespace OrderEntry.MindfulTrader
             {
                 if (parseSetting.ParseType != ParseTypes.Watchlist)
                     continue;
+                var accountBalance = parseSetting.GetMindfulTraderAccountBalance();                    
                 switch (parseSetting.Mode)
                 {
                     case Modes.Stock:
-                        orders.AddRange(await session.GetStockOrders(parseSetting.Key, parseSetting.Strategy, parseSetting.AccountBalance));
+                        orders.AddRange(await session.GetStockOrders(parseSetting.Key, parseSetting.Strategy, accountBalance));
                         break;
                     case Modes.Option:
-                        orders.AddRange(await session.GetOptionOrders(parseSetting.Key, parseSetting.Strategy, parseSetting.AccountBalance));
+                        orders.AddRange(await session.GetOptionOrders(parseSetting.Key, parseSetting.Strategy, accountBalance));
                         break;
                     case Modes.LowPricedStock:
-                        orders.AddRange(await session.GetLowPricedStockOrders(parseSetting.Key, parseSetting.Strategy, parseSetting.AccountBalance));
+                        orders.AddRange(await session.GetLowPricedStockOrders(parseSetting.Key, parseSetting.Strategy, accountBalance));
                         break;
                 }
             }

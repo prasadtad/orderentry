@@ -13,6 +13,10 @@ namespace OrderEntry.Database
 
         [Column("account_balance")] public required decimal AccountBalance { get; set; }
 
+        [Column("mindful_trader_allocation")] public required decimal MindfulTraderAllocation { get; set; }
+
+        [Column("insider_recommendation_allocation")] public required decimal InsiderRecommendationAllocation { get; set; }
+
         [Column("strategy")] public required Strategies Strategy { get; set; }
 
         [Column("mode")] public required Modes Mode { get; set; }
@@ -28,6 +32,16 @@ namespace OrderEntry.Database
         public override string ToString()
         {
             return $"{Key} - {ParseType} {AccountBalance} {Mode} {Strategy}";
+        }
+
+        public decimal GetMindfulTraderAccountBalance()
+        {
+            return Math.Min(AccountBalance, AccountBalance * MindfulTraderAllocation);
+        }
+
+        public decimal GetInsiderRecommendationAccountBalance()
+        {
+            return Math.Min(AccountBalance, AccountBalance * InsiderRecommendationAllocation);
         }
     }
 }

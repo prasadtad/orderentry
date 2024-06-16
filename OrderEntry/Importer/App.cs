@@ -8,9 +8,7 @@ using OrderEntry.Utils;
 namespace Importer
 {
     public class App(ILogger<App> logger, IMindfulTraderService mindfulTraderService, IDatabaseService databaseService, IInteractiveBrokersService interactiveBrokersService, ICharlesSchwabService charlesSchwabService, IInsiderTraderService insiderTraderService)
-    {
-        private const decimal RiskFactor = 0.75m;
-
+    {       
         public async Task Run()
         {
             await insiderTraderService.Import("insiderrecommendations.txt");            
@@ -42,8 +40,8 @@ namespace Importer
                 using var session = await charlesSchwabService.GetSession();
                 (charlesSchwabAccountBalance, positions) = await session.GetStockPositions((ticker) => dbPositions.SingleOrDefault(p => p.Ticker == ticker)?.ActivelyTrade ?? true);                
                 if (charlesSchwabAccountBalance != null) {
-                    parseSettings.Single().AccountBalance = charlesSchwabAccountBalance.Value * RiskFactor;
-                    logger.LogInformation("Charles Schwab account balance is ${balance}, using {adjustedBalance} for mindful trader", charlesSchwabAccountBalance, parseSettings.Single().AccountBalance);
+                    parseSettings.Single().AccountBalance = charlesSchwabAccountBalance.Value;
+                    logger.LogInformation("Charles Schwab account balance is ${balance}, using {adjustedBalance} for mindful trader", charlesSchwabAccountBalance, parseSettings.Single().GetMindfulTraderAccountBalance());
                 }
             }
             else 
@@ -53,8 +51,8 @@ namespace Importer
                 {
                     var interactiveBrokersAccountBalance = await interactiveBrokersService.GetAccountValue(parseSetting.AccountId);                    
                     if (interactiveBrokersAccountBalance != null) {
-                        parseSetting.AccountBalance = interactiveBrokersAccountBalance.Value * RiskFactor;
-                        logger.LogInformation("{parseSetting} account balance is ${balance}, using {adjustedBalance} for mindful trader", parseSetting, interactiveBrokersAccountBalance, parseSetting.AccountBalance);
+                        parseSetting.AccountBalance = interactiveBrokersAccountBalance.Value;
+                        logger.LogInformation("{parseSetting} account balance is ${balance}, using {adjustedBalance} for mindful trader", parseSetting, interactiveBrokersAccountBalance, parseSetting.GetMindfulTraderAccountBalance());
                     }
                 }
             }
@@ -137,7 +135,7 @@ namespace Importer
                 return;
             }
 
-            var orders = await session.GetStockOrders(parseSetting.Key, parseSetting.Strategy, parseSetting.AccountBalance);
+            var orders = await session.GetStockOrders(parseSetting.Key, parseSetting.Strategy, parseSetting.GetMindfulTraderAccountBalance());
             var validOrders = orders.Where(o => o.ParseSettingKey == parseSetting.Key && o.WatchDate == watchDate && o.Count > 0).ToList();
             logger.LogInformation("Got {count} stock orders, saving {validCount} valid orders", orders.Count, validOrders.Count);
             await databaseService.Save(validOrders);
@@ -153,7 +151,7 @@ namespace Importer
                 return;
             }
 
-            var orders = await session.GetOptionOrders(parseSetting.Key, parseSetting.Strategy, parseSetting.AccountBalance);
+            var orders = await session.GetOptionOrders(parseSetting.Key, parseSetting.Strategy, parseSetting.GetMindfulTraderAccountBalance());
             var validOrders = orders.Where(o => o.ParseSettingKey == parseSetting.Key && o.WatchDate == watchDate && o.Count > 0).ToList();
             logger.LogInformation("Got {count} option orders, saving {validCount} valid orders", orders.Count, validOrders.Count);
             await databaseService.Save(validOrders);

@@ -18,5 +18,13 @@ namespace OrderEntry.Utils
             }
             return date;
         }
+
+        public static DateOnly GetLastWorkingDay(DateOnly date, Func<DateOnly, bool> isHoliday)
+        {
+            while (date.DayOfWeek == DayOfWeek.Sunday || date.DayOfWeek == DayOfWeek.Saturday || isHoliday(date)) {
+                date.AddDays(-1);
+            }
+            return date;
+        }
     }
 }

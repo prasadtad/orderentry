@@ -66,6 +66,17 @@ namespace OrderEntry.Apis
             }
         }
 
+        public async Task FillEndOfDayData(List<(string ticker, DateOnly date)> tickerAndDates)
+        {
+            var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
+            var marketHolidays = await databaseService.GetMarketHolidays();
+            await FillEndOfDayData(tickerAndDates, marketHolidays);
+            while (tickerAndDates.Count == 0 && await timer.WaitForNextTickAsync())
+            {
+                await FillEndOfDayData(tickerAndDates, marketHolidays);
+            }
+        }
+
         private async Task<DateOnly> FillEndOfDayData(DateOnly date, string ticker, DateOnly earliestDate, List<DateOnly> marketHolidays)
         {
             var numCalls = 0;
@@ -89,6 +100,29 @@ namespace OrderEntry.Apis
             }
 
             return date;
+        }
+
+        private async Task FillEndOfDayData(List<(string ticker, DateOnly date)> tickerAndDates, List<DateOnly> marketHolidays)
+        {
+            var numCalls = 0;
+            while (numCalls < 5 && _tooManyRequestsTimestamp < DateTime.Now.Subtract(TimeSpan.FromMinutes(5)))
+            {
+                var first = tickerAndDates.First();
+                tickerAndDates.Remove(first);
+                var date = DateUtils.GetLastWorkingDay(first.date, marketHolidays.Contains);
+                if (await databaseService.HasStockDayData(date, first.ticker))
+                {
+                    continue;
+                }
+
+                var stockData = await GetStockDayDataFromApi(date, first.ticker);
+                numCalls++;
+
+                if (stockData != null)
+                {
+                    await databaseService.Insert(new List<StockDayData> { stockData });
+                }
+            }
         }
 
         private async Task<StockDayData?> GetStockDayDataFromApi(DateOnly date, string ticker)
@@ -175,5 +209,7 @@ namespace OrderEntry.Apis
         Task<List<OptionContract>> GetOptionContracts(DateOnly expirationDate, string type,  string ticker);
 
         Task FillEndOfDayData(int numDays, string ticker);
+
+        Task FillEndOfDayData(List<(string ticker, DateOnly date)> tickerAndDates);
     }
 }

@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using OrderEntry.Algorithms;
 using OrderEntry.Apis;
+using OrderEntry.Brokerages;
 using OrderEntry.Database;
 using OrderEntry.Utils;
 
@@ -12,12 +13,79 @@ namespace AutoTrader
 
         public async Task Run()
         {
+            var parseSettings = await databaseService.GetParseSettings();
+            if (parseSettings.Count == 0)
+                logger.LogWarning("No active parse settings found in database");
+
+            var recommendations = (await databaseService.GetInsiderRecommendations())
+                                        .OrderByDescending(o => o.Date)
+                                        .ToList();
+            var themes = recommendations.Select(r => r.Theme).Distinct().OrderBy(o => o).ToList();
+
+            var existingInvestmentPositions = (await databaseService.GetStockPositions(OrderEntry.MindfulTrader.Brokers.InteractiveBrokers))
+                                        .Where(p => !p.ActivelyTrade).ToList();
+
+            logger.LogInformation("{count} themes", themes.Count);
+            logger.LogInformation("{count} recommendations", recommendations.Count);
+            
+            foreach (var parseSetting in parseSettings.Where(p => p.Broker == OrderEntry.MindfulTrader.Brokers.InteractiveBrokers))
+            {
+                var balance = parseSetting.GetInsiderRecommendationAccountBalance();
+                logger.LogInformation("Account: {account}", parseSetting.Account);
+                logger.LogInformation("Balance: ${balance} out of ${total}", balance, parseSetting.AccountBalance);
+                logger.LogInformation("New position: ${balance}", 0.01m * balance);
+                logger.LogInformation("New sector: ${balance}", 0.1m * balance);
+
+                var existingPositions = existingInvestmentPositions.Where(p => p.AccountId == parseSetting.AccountId).ToList();
+                var existingPositionsByTheme = existingPositions.GroupBy(p => recommendations.Single(r => r.Ticker == p.Ticker).Theme)
+                                                                 .ToDictionary(g => g.Key, g => g.ToList());                
+                foreach (var theme in themes)
+                {
+                    if (existingPositionsByTheme.ContainsKey(theme))
+                        logger.LogInformation("  {theme} - {count} investments, cost: ${balance}", theme, existingPositionsByTheme[theme].Count, existingPositionsByTheme[theme].Sum(o => o.AverageCost * o.Count));
+                }
+
+                var themeLimit = existingPositionsByTheme.ToDictionary(e => e.Key, e => e.Value.Count);
+                var totalLimit = existingPositions.Count;
+                
+                foreach (var recommendation in recommendations)
+                {
+                    if (totalLimit >= 100)
+                    {
+                        logger.LogWarning("  {count} investments already, skipping all further recommendations", totalLimit);
+                        break;
+                    }
+
+                    var theme = recommendation.Theme;
+                    themeLimit.TryAdd(theme, 0);
+
+                    if (themeLimit[theme] >= 10)
+                    {
+                        logger.LogWarning("  {count} investments in {theme} already, skipping {ticker}", themeLimit[theme], theme, recommendation.Ticker);
+                        continue;
+                    }                        
+
+                    if (existingPositions.Any(e => e.Ticker == recommendation.Ticker))
+                    {
+                        logger.LogWarning("  Already invested in {theme}, skipping {ticker}", theme, recommendation.Ticker);
+                        continue;
+                    }
+
+                    logger.LogInformation("    Recommendation: {ticker} in {theme}, value: {value}", recommendation.Ticker, recommendation.Theme, 0.01m * balance);
+                    themeLimit[theme]++;
+                    totalLimit++;
+                }
+            }
+        }
+
+        private async Task RunOptions()
+        {
             var today = DateUtils.TodayEST;
 
             logger.LogInformation("Today is {date}", today);
             var marketHolidays = await databaseService.GetMarketHolidays();
 
-            var monthlyExpirations = (await databaseService.GetMonthlyExpirations()).OrderBy(e => e);            
+            var monthlyExpirations = (await databaseService.GetMonthlyExpirations()).OrderBy(e => e);
 
             var expirationThreeMonthsAgo = monthlyExpirations.Where(m => m <= today).SkipLast(3).Last();
             logger.LogInformation("Expiration date three months ago is {date}", expirationThreeMonthsAgo);
@@ -29,7 +97,7 @@ namespace AutoTrader
 
             var lastExpiration = monthlyExpirations.Where(m => m <= today).Last();
             logger.LogInformation("Last expiration date before today is {date}", lastExpiration);
-            
+
             var nextExpiration = monthlyExpirations.Where(m => m > today).First();
             logger.LogInformation("The next expiration date after today is {date}", nextExpiration);
 
@@ -40,7 +108,7 @@ namespace AutoTrader
             logger.LogInformation("The standard deviation is {standardDeviation}", standardDeviation);
 
             var firstHistoricalPrice = historicalPrices.First();
-            var lastHistoricalPrice = historicalPrices.Last();            
+            var lastHistoricalPrice = historicalPrices.Last();
             var estimatedPriceNextMonth = coveredCallStrategy.EstimateNextMonthPrice(Convert.ToDouble(lastHistoricalPrice.Close), Convert.ToDouble(firstHistoricalPrice.Close));
             logger.LogInformation("The estimated price for {nextExpiration} is {estimatedPrice} based on price going from {firstPrice} on {firstDate} to {lastPrice} on {lastDate}", nextExpiration, estimatedPriceNextMonth, firstHistoricalPrice.Close, firstHistoricalPrice.From, lastHistoricalPrice.Close, lastHistoricalPrice.From);
 
@@ -49,7 +117,7 @@ namespace AutoTrader
             logger.LogInformation("Calculating expected premium for prices below {price}", strikeLimit);
             foreach (var contract in contracts.Where(c => Convert.ToDouble(c.StrikePrice) <= strikeLimit).TakeLast(10))
             {
-                
+
                 var minPremium = coveredCallStrategy.GetMinimumPremiumRequired(estimatedPriceNextMonth, standardDeviation, Convert.ToDouble(contract.StrikePrice));
                 logger.LogInformation("{premium} required for strike {strikePrice} with profit {profit}", minPremium, contract.StrikePrice, estimatedPriceNextMonth - Convert.ToDouble(contract.StrikePrice) - minPremium);
             }
