@@ -16,6 +16,8 @@ namespace MVC.Models
 
         public required bool ActivelyTrade { get; set; }
 
+        public required string Theme { get; set; }
+
         public required string BackgroundColor { get; set; }
     }
 }

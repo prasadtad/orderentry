@@ -16,6 +16,8 @@
                 <td>Count</td>
                 <td>Average Cost</td>
                 <td>Actively Trade</td>
+                <td>Theme</td>
+                <td>Theme Count</td>
             </tr>
         </thead>
         <tbody>
@@ -28,6 +30,8 @@
                     <td>@Model.InteractiveBrokers[i].Count</td>
                     <td>@Model.InteractiveBrokers[i].AverageCost</td>
                     <td>@(Model.InteractiveBrokers[i].ActivelyTrade ? "yes": "no")</td>
+                    <td>@Model.InteractiveBrokers[i].Theme</td>
+                    <td>@Model.InteractiveBrokers.Count(c => c.Account == @Model.InteractiveBrokers[i].Account && c.Theme == @Model.InteractiveBrokers[i].Theme && !string.IsNullOrEmpty(c.Theme))</td>
                 </tr>
             }
         </tbody>
@@ -43,6 +47,8 @@
                 <td>Count</td>
                 <td>Average Cost</td>
                 <td>Actively Trade</td>
+                <td>Theme</td>
+                <td>Theme Count</td>
             </tr>
         </thead>
         <tbody>
@@ -55,6 +61,8 @@
                     <td>@Model.CharlesSchwab[i].Count</td>
                     <td>@Model.CharlesSchwab[i].AverageCost</td>
                     <td>@(Model.CharlesSchwab[i].ActivelyTrade ? "yes": "no")</td>
+                    <td>@Model.CharlesSchwab[i].Theme</td>
+                    <td>@Model.CharlesSchwab.Count(c => c.Account == @Model.CharlesSchwab[i].Account && c.Theme == @Model.CharlesSchwab[i].Theme && !string.IsNullOrEmpty(c.Theme))</td>
                 </tr>
             }
         </tbody>

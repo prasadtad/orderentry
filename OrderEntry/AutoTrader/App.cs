@@ -35,12 +35,12 @@ namespace AutoTrader
                 var balance = parseSetting.GetInsiderRecommendationAccountBalance();
                 logger.LogInformation("Account: {account}", parseSetting.Account);
                 logger.LogInformation("Balance: ${balance} out of ${total}", balance, parseSetting.AccountBalance);
-                logger.LogInformation("New position: ${balance}", 0.01m * balance);
+                logger.LogInformation("New position: ${balance}", 0.02m * balance);
                 logger.LogInformation("New sector: ${balance}", 0.1m * balance);
 
                 var existingPositions = parseSetting.Broker == OrderEntry.MindfulTrader.Brokers.InteractiveBrokers ? 
                     interactiveBrokersPositions.Where(p => p.AccountId == parseSetting.AccountId).ToList() : charlesSchwabPositions.Where(c => c.AccountId == parseSetting.AccountId).ToList();
-                var existingPositionsByTheme = existingPositions.GroupBy(p => recommendations.Single(r => r.Ticker == p.Ticker).Theme)
+                var existingPositionsByTheme = existingPositions.GroupBy(p => recommendations.FirstOrDefault(r => r.Ticker == p.Ticker)?.Theme ?? string.Empty)
                                                                  .ToDictionary(g => g.Key, g => g.ToList());                
                 foreach (var theme in themes)
                 {
@@ -53,7 +53,7 @@ namespace AutoTrader
                 
                 foreach (var recommendation in recommendations)
                 {
-                    if (totalLimit >= 100)
+                    if (totalLimit >= 50)
                     {
                         logger.LogWarning("  {count} investments already, skipping all further recommendations", totalLimit);
                         break;
@@ -62,7 +62,7 @@ namespace AutoTrader
                     var theme = recommendation.Theme;
                     themeLimit.TryAdd(theme, 0);
 
-                    if (themeLimit[theme] >= 10)
+                    if (themeLimit[theme] >= 5)
                     {
                         logger.LogWarning("  {count} investments in {theme} already, skipping {ticker}", themeLimit[theme], theme, recommendation.Ticker);
                         continue;
@@ -74,7 +74,7 @@ namespace AutoTrader
                         continue;
                     }
 
-                    logger.LogInformation("    Recommendation: {ticker} in {theme}, value: ${value}", recommendation.Ticker, recommendation.Theme, 0.01m * balance);
+                    logger.LogInformation("    Recommendation: {ticker} in {theme}, value: ${value}", recommendation.Ticker, recommendation.Theme, 0.02m * balance);
                     themeLimit[theme]++;
                     totalLimit++;
                 }
