@@ -68,7 +68,7 @@ namespace AutoTrader
                         continue;
                     }                        
 
-                    if (existingPositions.Any(e => e.Ticker == recommendation.Ticker))
+                    if (existingPositions.Any(e => e.Ticker == (recommendation.Ticker.IndexOf(':') >= 0 ? recommendation.Ticker.Substring(recommendation.Ticker.IndexOf(':') + 1) : recommendation.Ticker)))
                     {
                         logger.LogWarning("  Already invested in {theme}, skipping {ticker}", theme, recommendation.Ticker);
                         continue;

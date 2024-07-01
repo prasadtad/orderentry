@@ -41,7 +41,7 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
         
         if (stockOrders != null)
         {
-            var balance = stockPositions.Where(p => p.Broker == importedStockParseSetting.Broker && p.AccountId == importedStockParseSetting.AccountId)
+            var balance = stockPositions.Where(p => p.Broker == importedStockParseSetting.Broker && p.AccountId == importedStockParseSetting.AccountId && p.ActivelyTrade)
                                         .Sum(p => p.AverageCost * p.Count);
             foreach (var stockOrder in stockOrders)
             {
