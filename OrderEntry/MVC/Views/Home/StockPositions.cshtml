@@ -25,7 +25,7 @@
             {
                 <tr style="background-color: @Model.InteractiveBrokers[i].BackgroundColor">                  
                     <td>@Model.InteractiveBrokers[i].Account</td>
-                    <td>@Model.InteractiveBrokers[i].AccountBalance</td>
+                    <td>@Model.InteractiveBrokers[i].AccountBalance.ToString("c")</td>
                     <td>@Model.InteractiveBrokers[i].Ticker</td>
                     <td>@Model.InteractiveBrokers[i].Count</td>
                     <td>@Model.InteractiveBrokers[i].AverageCost</td>
@@ -56,7 +56,7 @@
             {
                 <tr style="background-color: @Model.CharlesSchwab[i].BackgroundColor">                  
                     <td>@Model.CharlesSchwab[i].Account</td>
-                    <td>@Model.CharlesSchwab[i].AccountBalance</td>
+                    <td>@Model.CharlesSchwab[i].AccountBalance.ToString("c")</td>
                     <td>@Model.CharlesSchwab[i].Ticker</td>
                     <td>@Model.CharlesSchwab[i].Count</td>
                     <td>@Model.CharlesSchwab[i].AverageCost</td>

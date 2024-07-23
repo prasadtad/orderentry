@@ -91,7 +91,7 @@ namespace OrderEntry.Brokerages
                         }
                     }
                     if (firstRowValue == null || secondRowValue == null)
-                        throw new Exception($"Unable to determine quantity or position for {ticker}");
+                        continue;
                     positions.Add(new StockPosition
                     {
                         Broker = Brokers.CharlesSchwab,

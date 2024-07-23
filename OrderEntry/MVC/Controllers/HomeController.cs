@@ -139,20 +139,23 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
         var interactiveBrokersStockOrders = new List<StockOrder>();
         var charlesSchwabStockOrders = new List<StockOrder>();
         var parseSettings = await GetParseSettings();
+        var balanceRemainingByParseSetting = new Dictionary<string, decimal>();
         foreach (var parseSetting in parseSettings)
         {
             if (parseSetting.Mode != Modes.Stock) continue;
 
+            balanceRemainingByParseSetting.Add(parseSetting.Key, parseSetting!.GetMindfulTraderAccountBalance());
             interactiveBrokersStockOrders.AddRange(allStockOrders.Where(o => o.ParseSettingKey == parseSetting.Key && parseSetting.Broker == Brokers.InteractiveBrokers));
             charlesSchwabStockOrders.AddRange(allStockOrders.Where(o => o.ParseSettingKey == parseSetting.Key && parseSetting.Broker == Brokers.CharlesSchwab));
         }
 
         var recommendations = await databaseService.GetInsiderRecommendations();
         List<StockPositionViewModel> GetStockPositionsViewModel(List<StockPosition> stockPositions, Brokers broker)
-        {
+        {            
             return [.. stockPositions.Where(s => s.Broker == broker).Select(stockPosition =>
             {
                 var parseSetting = parseSettings!.SingleOrDefault(p => p.Broker == broker && p.AccountId == stockPosition.AccountId);
+                var recommendationsBalance = parseSetting.GetInsiderRecommendationAccountBalance();
                 var orderExists = parseSetting == null ? (bool?) null :
                                   parseSetting.Broker == Brokers.CharlesSchwab ? 
                                      charlesSchwabStockOrders!.Any(o => o.ParseSettingKey == parseSetting.Key && o.Ticker == stockPosition.Ticker)
@@ -160,7 +163,7 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
                 var theme = recommendations.FirstOrDefault(r => (r.Ticker.IndexOf(':') >= 0 ? r.Ticker.Substring(r.Ticker.IndexOf(':') + 1) : r.Ticker) == stockPosition.Ticker)?.Theme ?? string.Empty;
                 var viewModel = new StockPositionViewModel
                 {
-                    AccountBalance = parseSetting!.GetMindfulTraderAccountBalance(),
+                    AccountBalance = stockPosition.ActivelyTrade ? balanceRemainingByParseSetting[parseSetting.Key] : recommendationsBalance,
                     Broker = stockPosition.Broker.ToString(),
                     Account = parseSetting?.Account ?? stockPosition.AccountId,
                     ActivelyTrade = stockPosition.ActivelyTrade,
@@ -170,6 +173,8 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
                     Theme = theme,
                     BackgroundColor = orderExists == null ? "gray" : !stockPosition.ActivelyTrade ? "lightblue" : !orderExists.Value ? "red" : "green"
                 };
+                if (stockPosition.ActivelyTrade)
+                    balanceRemainingByParseSetting[parseSetting.Key] -= stockPosition.Count * stockPosition.AverageCost;
                 return viewModel;
             }).OrderBy(o => o.BackgroundColor == "gray" ? 4 : o.BackgroundColor == "lightblue" ? 3 : o.BackgroundColor == "green" ? 2 : 1)];
         }
