@@ -31,7 +31,9 @@ namespace OrderEntry.Brokerages
                 logger.LogError("Currency should be USD in {details}", details);
                 return null;
             }
-            return decimal.TryParse(details["NetLiquidationByCurrency"], out var accountBalance) ? accountBalance : null;
+            if (!decimal.TryParse(details["NetLiquidation"], out var netLiquidation)) return null;
+            if (!decimal.TryParse(details["ExchangeRate"], out var exchangeRate)) return null;
+            return netLiquidation / exchangeRate;
         }
 
         public async Task<decimal?> GetCurrentPrice(string account, string ticker)

@@ -154,7 +154,7 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
         {            
             return [.. stockPositions.Where(s => s.Broker == broker).Select(stockPosition =>
             {
-                var parseSetting = parseSettings!.SingleOrDefault(p => p.Broker == broker && p.AccountId == stockPosition.AccountId);
+                var parseSetting = parseSettings.Single(p => p.Broker == broker && p.AccountId == stockPosition.AccountId);
                 var recommendationsBalance = parseSetting.GetInsiderRecommendationAccountBalance();
                 var orderExists = parseSetting == null ? (bool?) null :
                                   parseSetting.Broker == Brokers.CharlesSchwab ? 
@@ -163,7 +163,7 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
                 var theme = recommendations.FirstOrDefault(r => (r.Ticker.IndexOf(':') >= 0 ? r.Ticker.Substring(r.Ticker.IndexOf(':') + 1) : r.Ticker) == stockPosition.Ticker)?.Theme ?? string.Empty;
                 var viewModel = new StockPositionViewModel
                 {
-                    AccountBalance = stockPosition.ActivelyTrade ? balanceRemainingByParseSetting[parseSetting.Key] : recommendationsBalance,
+                    AccountBalance = stockPosition.ActivelyTrade ? balanceRemainingByParseSetting[parseSetting!.Key] : recommendationsBalance,
                     Broker = stockPosition.Broker.ToString(),
                     Account = parseSetting?.Account ?? stockPosition.AccountId,
                     ActivelyTrade = stockPosition.ActivelyTrade,
@@ -174,7 +174,7 @@ public class HomeController(ILogger<HomeController> logger, IMemoryCache memoryC
                     BackgroundColor = orderExists == null ? "gray" : !stockPosition.ActivelyTrade ? "lightblue" : !orderExists.Value ? "red" : "green"
                 };
                 if (stockPosition.ActivelyTrade)
-                    balanceRemainingByParseSetting[parseSetting.Key] -= stockPosition.Count * stockPosition.AverageCost;
+                    balanceRemainingByParseSetting[parseSetting!.Key] -= stockPosition.Count * stockPosition.AverageCost;
                 return viewModel;
             }).OrderBy(o => o.BackgroundColor == "gray" ? 4 : o.BackgroundColor == "lightblue" ? 3 : o.BackgroundColor == "green" ? 2 : 1)];
         }
